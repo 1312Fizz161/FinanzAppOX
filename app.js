@@ -66,10 +66,10 @@
   const unpaid = (itemId, from, to) => sumTx(itemId, from, 'buy', to) - sumTx(itemId, from, 'pay', to);
   const pairDebt = (from, to) => state.items.reduce((sum, it) => sum + unpaid(it.id, from, to) * it.price, 0);
   // Kontostand einer Person: was andere bei ihr gekauft und noch nicht zurückgezahlt haben,
-  // minus dem Wert dessen, was sie selbst gegessen hat, plus dem, was sie zurückgezahlt hat
+  // minus dem Wert dessen, was sie selbst konsumiert hat, minus dem, was sie zurückgezahlt hat
   const balance = (key) => round2(
     state.people.reduce((sum, p) => sum + (p.id === key ? 0 : pairDebt(p.id, key)), 0)
-    + state.items.reduce((sum, it) => sum + (sumTx(it.id, key, 'pay') - sumTx(it.id, key, 'eat')) * it.price, 0));
+    + state.items.reduce((sum, it) => sum - (sumTx(it.id, key, 'pay') + sumTx(it.id, key, 'eat')) * it.price, 0));
   // Geld, das a an b schuldet
   const owes = (a, b) => round2(Math.max(0, pairDebt(a, b)) + Math.max(0, -pairDebt(b, a)));
   const amount = (b) => (b > 0 ? '+' : '') + money(b);
@@ -142,7 +142,7 @@
           <button data-action="qty" data-d="1" aria-label="Mehr">+</button>
         </div>
         <button class="btn pay" data-action="buy">Kaufen<small>+${money(it.price * q)} für ${receiver}</small></button>
-        <button class="btn use" data-action="pay">Zurückzahlen<small>${money(it.price * q)} an ${receiver}</small></button>
+        <button class="btn use" data-action="pay">Zurückzahlen<small>−${money(it.price * q)} bei ${esc(who(p))}</small></button>
       </article>`;
     }).join('') || '<div class="empty wide">Noch keine Spalte. Lege im Zahnrad eine an.</div>';
   }
