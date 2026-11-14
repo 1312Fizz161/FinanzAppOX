@@ -9,17 +9,24 @@
 
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   const defaults = () => ({
-    me: 'Matti',
-    partner: 'Juna',
+    people: [{ id: 'me', name: 'Matti' }, { id: 'partner', name: 'Juna' }],
+    buyer: 'me',      // wer gerade kauft
+    seller: 'partner', // bei wem gekauft wird
     items: [{ id: uid(), name: 'Geschenk', price: 15, emoji: '🎁' }],
     notes: [],
-    payer: 'me', // wer gerade zahlt: 'me' oder 'partner'
-    tx: [] // { id, itemId, from (wer handelt), type: 'buy' | 'eat' | 'pay', qty, price, ts }
+    tx: [] // { id, itemId, from (wer handelt), to (bei wem), type: 'buy' | 'eat' | 'pay', qty, price, ts }
   });
 
   let state;
   try { state = JSON.parse(localStorage.getItem(KEY)) || defaults(); } catch { state = defaults(); }
   state.tx = (state.tx || []).filter((t) => t.type); // alte Buchungen ohne Art verwerfen
+  // Ältere Stände mit genau zwei festen Personen übernehmen
+  if (!Array.isArray(state.people) || state.people.length < 2) {
+    state.people = [{ id: 'me', name: state.me || 'Matti' }, { id: 'partner', name: state.partner || 'Juna' }];
+    state.buyer = state.payer === 'partner' ? 'partner' : 'me';
+    delete state.me; delete state.partner; delete state.payer;
+  }
+  state.tx.forEach((t) => { if (!t.to) t.to = t.from === 'me' ? 'partner' : 'me'; });
   if (!Array.isArray(state.notes)) state.notes = []; // { id, text, ts }
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* privat/voll */ } };
 
@@ -30,6 +37,7 @@
   let pickerFor = null;    // offene Emoji-Auswahl
   let confirmDel = null;   // Spalte, deren Löschen bestätigt werden muss
   let confirmReset = false;
+  let confirmDelPerson = null;
   let editing = null;      // offene Notiz
   let confirmNoteDel = false;
 
@@ -39,18 +47,27 @@
   const money = (n) => eur.format(n).replace('-', '−');
   const signed = (n) => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
   const initial = (s) => (s.trim()[0] || '?').toUpperCase();
-  const name = (s, fallback) => s.trim() || fallback;
 
-  const other = (who) => (who === 'me' ? 'partner' : 'me');
-  const who = (key) => name(state[key], key === 'me' ? 'Matti' : 'Juna');
-  const payer = () => (state.payer === 'partner' ? 'partner' : 'me');
-  const sumTx = (itemId, key, type) => state.tx.reduce((sum, t) => sum + (t.itemId === itemId && t.from === key && t.type === type ? t.qty : 0), 0);
-  // Stücke, die eine Person gekauft und noch nicht aufgegessen hat
+  const COLORS = [['#8ea2ff', '#5b4bff'], ['#ff8fb8', '#ff4f8b'], ['#5ef0a0', '#12a56c'], ['#ffd36b', '#f59a0b'], ['#7fe3ff', '#1e9bd8'], ['#d9a2ff', '#9b4bff'], ['#ff9d7a', '#f0562e'], ['#b8c4d6', '#66758c']];
+  const round2 = (n) => Math.round(n * 100) / 100;
+  const person = (id) => state.people.find((p) => p.id === id);
+  const who = (id) => { const p = person(id); return (p && p.name.trim()) || 'Person ' + (state.people.indexOf(p) + 1); };
+  const avatar = (id, cls = '') => {
+    const c = COLORS[Math.max(0, state.people.indexOf(person(id))) % COLORS.length];
+    return `<div class="avatar ${cls}" style="background:linear-gradient(145deg, ${c[0]}, ${c[1]})">${esc(who(id)[0].toUpperCase())}</div>`;
+  };
+  const buyer = () => (person(state.buyer) ? state.buyer : state.people[0].id);
+  const seller = () => { const b = buyer(); return person(state.seller) && state.seller !== b ? state.seller : state.people.find((p) => p.id !== b).id; };
+  const sumTx = (itemId, from, type, to) => state.tx.reduce((sum, t) => sum + (t.itemId === itemId && t.from === from && t.type === type && (!to || t.to === to) ? t.qty : 0), 0);
+  // Stücke, die eine Person gekauft und noch nicht aufgegessen hat (egal bei wem)
   const held = (itemId, key) => sumTx(itemId, key, 'buy') - sumTx(itemId, key, 'eat');
-  // Stücke, die eine Person gekauft, aber noch nicht bezahlt hat (negativ = zu viel bezahlt)
-  const unpaid = (itemId, key) => sumTx(itemId, key, 'buy') - sumTx(itemId, key, 'pay');
-  // Kontostand einer Person: was die andere Person bei ihr gekauft und noch nicht zurückgezahlt hat
-  const balance = (key) => Math.round(state.items.reduce((sum, it) => sum + unpaid(it.id, other(key)) * it.price, 0) * 100) / 100;
+  // Stücke, die jemand bei einer Person gekauft, aber noch nicht bezahlt hat (negativ = zu viel bezahlt)
+  const unpaid = (itemId, from, to) => sumTx(itemId, from, 'buy', to) - sumTx(itemId, from, 'pay', to);
+  const pairDebt = (from, to) => state.items.reduce((sum, it) => sum + unpaid(it.id, from, to) * it.price, 0);
+  // Kontostand einer Person: was alle anderen bei ihr gekauft und noch nicht zurückgezahlt haben
+  const balance = (key) => round2(state.people.reduce((sum, p) => sum + (p.id === key ? 0 : pairDebt(p.id, key)), 0));
+  // Geld, das a an b schuldet
+  const owes = (a, b) => round2(Math.max(0, pairDebt(a, b)) + Math.max(0, -pairDebt(b, a)));
   const amount = (b) => (b > 0 ? '+' : '') + money(b);
   const tone = (b) => (b > 0 ? 'pos' : b < 0 ? 'neg' : 'zero');
 
@@ -59,19 +76,19 @@
     const c = held(it.id, key);
     return c > 0 ? `<span class="chip">${esc(it.emoji)}${c > 1 ? ' ×' + c : ''}</span>` : '';
   }).join('');
-  // Geld, das eine Person der anderen schuldet
-  const debt = (key) => Math.round((Math.max(0, balance(other(key))) + Math.max(0, -balance(key))) * 100) / 100;
 
   function renderHome() {
     $('widget').innerHTML = `
       <div class="w-top"><span class="mini">${EURO_SVG}</span>Finanzen</div>
-      <div class="w-rows">${['me', 'partner'].map((k) => {
-        const d = debt(k), chips = heldChips(k);
+      <div class="w-rows">${state.people.map((p) => {
+        const debts = state.people.filter((o) => o.id !== p.id && owes(p.id, o.id) > 0)
+          .map((o) => `<span class="chip neg"><i>${esc(who(o.id))}</i> ${money(owes(p.id, o.id))}</span>`).join('');
+        const chips = heldChips(p.id);
         return `
         <div class="w-person">
           <div class="w-row">
-            <span><b>${esc(who(k))}</b> ${d ? 'schuldet' : 'schuldet nichts'}</span>
-            ${d ? `<div class="chips"><span class="chip neg">${money(d)}</span></div>` : ''}
+            <span><b>${esc(who(p.id))}</b> ${debts ? 'schuldet' : 'schuldet nichts'}</span>
+            ${debts ? `<div class="chips">${debts}</div>` : ''}
           </div>
           ${chips ? `<div class="w-row sub"><span>hat noch</span><div class="chips">${chips}</div></div>` : ''}
         </div>`;
@@ -80,31 +97,32 @@
   }
 
   function renderAccounts() {
-    const p = payer();
+    const b = buyer(), sl = seller();
+    const pick = (action, list, on) => `<div class="pick">${list.map((p) => `
+        <button class="pchip glass ${p.id === on ? 'on' : ''}" data-action="${action}" data-k="${p.id}">${avatar(p.id, 'sm')}<span>${esc(who(p.id))}</span></button>`).join('')}
+      </div>`;
     $('hero').innerHTML = `
-      <div class="accts">${['partner', 'me'].map((k) => {
-        const b = balance(k);
-        const chips = heldChips(k);
+      <div class="accts">${state.people.map((p) => {
+        const bal = balance(p.id);
         return `
-        <article class="acct glass ${tone(b)}">
-          <div class="pair"><div class="avatar ${k === 'partner' ? 'a' : 'b'}">${esc(initial(who(k)))}</div><span>${esc(who(k))}</span></div>
+        <article class="acct glass ${tone(bal)}">
+          <div class="pair">${avatar(p.id)}<span>${esc(who(p.id))}</span></div>
           <div class="label">Kontostand</div>
-          <div class="amount">${amount(b)}</div>
-          <div class="chips">${chips || '<span class="chip none">Nichts übrig</span>'}</div>
+          <div class="amount">${amount(bal)}</div>
+          <div class="chips">${heldChips(p.id) || '<span class="chip none">Nichts übrig</span>'}</div>
         </article>`;
       }).join('')}
       </div>
-      <div class="seg-label">Wer kauft bei wem?</div>
-      <div class="seg glass" data-on="${p}">
-        <button data-action="payer" data-k="me" class="${p === 'me' ? 'on' : ''}">${esc(who('me'))} → ${esc(who('partner'))}</button>
-        <button data-action="payer" data-k="partner" class="${p === 'partner' ? 'on' : ''}">${esc(who('partner'))} → ${esc(who('me'))}</button>
-      </div>`;
+      <div class="seg-label">Wer kauft?</div>
+      ${pick('buyer', state.people, b)}
+      <div class="seg-label">Bei wem?</div>
+      ${pick('seller', state.people.filter((p) => p.id !== b), sl)}`;
   }
 
   function renderItems() {
-    const p = payer(), receiver = esc(who(other(p)));
+    const p = buyer(), sl = seller(), receiver = esc(who(sl));
     $('items').innerHTML = state.items.map((it) => {
-      const c = held(it.id, p), q = qty[it.id] || 1, open = Math.round(unpaid(it.id, p) * it.price * 100) / 100;
+      const c = held(it.id, p), q = qty[it.id] || 1, open = round2(unpaid(it.id, p, sl) * it.price);
       return `
       <article class="card glass" data-id="${it.id}">
         <div class="card-top">
@@ -130,11 +148,11 @@
   function renderHistory() {
     const byId = Object.fromEntries(state.items.map((it) => [it.id, it]));
     const fmt = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-    const rows = state.tx.slice().reverse().filter((t) => byId[t.itemId]).slice(0, 60).map((t) => {
-      const it = byId[t.itemId], P = esc(who(t.from)), R = esc(who(other(t.from))), sum = money(t.qty * t.price);
-      const text = t.type === 'buy' ? `${P} kauft ${t.qty}× ${esc(it.name)}`
+    const rows = state.tx.slice().reverse().filter((t) => byId[t.itemId] && person(t.from) && person(t.to)).slice(0, 60).map((t) => {
+      const it = byId[t.itemId], P = esc(who(t.from)), R = esc(who(t.to)), sum = money(t.qty * t.price);
+      const text = t.type === 'buy' ? `${P} kauft ${t.qty}× ${esc(it.name)} bei ${R}`
         : t.type === 'eat' ? `${P} isst ${t.qty}× ${esc(it.name)} auf`
-        : `${P} zahlt ${sum} zurück`;
+        : `${P} zahlt ${R} ${sum} zurück`;
       const val = t.type === 'buy' ? `<div class="val pos">+${sum}</div>` : t.type === 'pay' ? `<div class="val neg">−${sum}</div>` : '';
       return `
       <div class="row" data-tx="${t.id}">
@@ -154,9 +172,15 @@
     $('settings').innerHTML = `
       <div class="group-title">Personen</div>
       <div class="group">
-        <div class="field"><label>Person 1</label><input data-person="me" value="${esc(state.me)}" placeholder="Matti" maxlength="20"></div>
-        <div class="field"><label>Person 2</label><input data-person="partner" value="${esc(state.partner)}" placeholder="Juna" maxlength="20"></div>
+        ${state.people.map((p, i) => `
+        <div class="field" data-pid="${p.id}">
+          ${avatar(p.id, 'sm')}
+          <input data-person value="${esc(p.name)}" placeholder="Person ${i + 1}" maxlength="20" aria-label="Name Person ${i + 1}">
+          ${state.people.length > 2 ? `<button class="del ${confirmDelPerson === p.id ? 'sure' : ''}" data-action="del-person" aria-label="Person löschen">${confirmDelPerson === p.id ? 'Löschen?' : TRASH_SVG}</button>` : ''}
+        </div>`).join('')}
+        <button class="linkbtn" data-action="add-person">+ Person hinzufügen</button>
       </div>
+      <p class="hint">Beim Löschen einer Person werden auch ihre Einträge entfernt.</p>
       <div class="group-title">Spalten</div>
       ${state.items.map((it) => `
       <div class="group" data-id="${it.id}" style="margin-bottom:10px">
@@ -245,15 +269,15 @@
     if (v !== 'manager') closeSheet();
     if (v !== 'notes' && editing) closeNote();
   }
-  function openSheet() { pickerFor = confirmDel = null; confirmReset = false; renderSettings(); document.body.classList.add('sheet-open'); $('sheet').setAttribute('aria-hidden', 'false'); }
+  function openSheet() { pickerFor = confirmDel = confirmDelPerson = null; confirmReset = false; renderSettings(); document.body.classList.add('sheet-open'); $('sheet').setAttribute('aria-hidden', 'false'); }
   function closeSheet() { document.activeElement && document.activeElement.blur(); document.body.classList.remove('sheet-open'); $('sheet').setAttribute('aria-hidden', 'true'); }
 
   function book(itemId, type) {
     const it = state.items.find((i) => i.id === itemId);
     if (!it) return;
     const q = qty[itemId] || 1;
-    if (type === 'eat' && held(itemId, payer()) < q) return;
-    state.tx.push({ id: uid(), itemId, from: payer(), type, qty: q, price: it.price, ts: Date.now() });
+    if (type === 'eat' && held(itemId, buyer()) < q) return;
+    state.tx.push({ id: uid(), itemId, from: buyer(), to: seller(), type, qty: q, price: it.price, ts: Date.now() });
     qty[itemId] = 1;
     commit();
     const card = document.querySelector(`.card[data-id="${itemId}"]`);
@@ -265,7 +289,23 @@
     open: () => setView('manager'),
     close: () => setView('home'),
     toggle: (el) => setView(document.body.dataset.view === el.dataset.app ? 'home' : el.dataset.app),
-    payer: (el) => { state.payer = el.dataset.k; commit(); },
+    buyer: (el) => { const prev = buyer(), sl = seller(); state.buyer = el.dataset.k; state.seller = sl === state.buyer ? prev : sl; commit(); },
+    seller: (el) => { state.seller = el.dataset.k; commit(); },
+    'add-person': () => {
+      const p = { id: uid(), name: '' };
+      state.people.push(p);
+      commit(); renderSettings();
+      const input = document.querySelector(`#settings [data-pid="${p.id}"] input`);
+      if (input) { input.scrollIntoView({ block: 'center' }); input.focus(); }
+    },
+    'del-person': (el) => {
+      const id = el.closest('[data-pid]').dataset.pid;
+      if (state.people.length <= 2) return;
+      if (confirmDelPerson !== id) { confirmDelPerson = id; renderSettings(); return; }
+      state.people = state.people.filter((p) => p.id !== id);
+      state.tx = state.tx.filter((t) => t.from !== id && t.to !== id);
+      confirmDelPerson = null; commit(); renderSettings();
+    },
     settings: openSheet,
     'settings-close': closeSheet,
     qty: (el, id) => { qty[id] = Math.min(99, Math.max(1, (qty[id] || 1) + Number(el.dataset.d))); renderItems(); },
@@ -314,7 +354,11 @@
   // Einstellungen: live übernehmen, ohne das Eingabefeld neu zu zeichnen
   $('settings').addEventListener('input', (e) => {
     const el = e.target;
-    if (el.dataset.person) state[el.dataset.person] = el.value;
+    if (el.dataset.person !== undefined) {
+      const id = el.closest('[data-pid]').dataset.pid;
+      person(id).name = el.value;
+      el.previousElementSibling.textContent = who(id)[0].toUpperCase();
+    }
     else if (el.dataset.field) {
       const it = state.items.find((i) => i.id === el.closest('[data-id]').dataset.id);
       if (el.dataset.field === 'name') it.name = el.value;

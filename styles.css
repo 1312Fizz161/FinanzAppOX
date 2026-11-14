@@ -278,3 +278,17 @@ body.sheet-open .sheet { transform: none; }
 .widget .w-person { display: grid; gap: 6px; }
 .widget .w-row.sub { font-size: 14px; color: var(--faint); }
 .widget .w-row.sub .chip { font-size: 14px; padding: 3px 9px; }
+
+/* ---------- Mehrere Personen ---------- */
+.avatar.sm { width: 26px; height: 26px; font-size: 12px; border: 0; margin: 0; flex: none; }
+.pick { display: flex; flex-wrap: wrap; gap: 8px; }
+.pchip { display: flex; align-items: center; gap: 8px; max-width: 100%; padding: 5px 14px 5px 5px; border-radius: 999px; font-weight: 600; font-size: 15px; color: var(--muted); box-shadow: none; transition: background .25s, color .25s, transform .2s var(--ease); }
+.pchip span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pchip .avatar { opacity: .55; transition: opacity .25s; }
+.pchip.on { background: rgba(255, 255, 255, .22); border-color: rgba(255, 255, 255, .4); color: var(--text); }
+.pchip.on .avatar { opacity: 1; }
+.pchip:active { transform: scale(.94); }
+.seg-label { margin-top: 18px; }
+.widget .chip i { font-style: normal; color: var(--text); opacity: .85; }
+#home { overflow-y: auto; padding-bottom: calc(var(--safe-b) + 90px); scrollbar-width: none; }
+#home::-webkit-scrollbar { display: none; }
