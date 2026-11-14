@@ -381,7 +381,7 @@
     },
     reset: () => {
       if (!confirmReset) { confirmReset = true; renderSettings(); return; }
-      state.tx = []; confirmReset = false; // Personen, Spalten und Notizen bleiben commit(); renderSettings();
+      state.tx = []; /* Personen, Spalten und Notizen bleiben */ confirmReset = false; commit(); renderSettings();
     }
   };
 
