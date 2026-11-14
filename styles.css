@@ -322,3 +322,15 @@ button.acct:active { transform: scale(.97); }
 
 .slot .eat { line-height: 1.2; }
 .slot .eat small { display: block; font-size: 12px; }
+
+/* ---------- Inventar: Konsumieren oder Zurückgeben ---------- */
+.slot:active { transform: none; }
+.slot .from { font-size: 13px; color: var(--muted); }
+.slot button.eat { transition: transform .18s var(--ease), filter .2s; }
+.slot .back { margin-top: 8px; width: 100%; padding: 8px 6px; border-radius: 13px; font-weight: 600; font-size: 15px; line-height: 1.2; background: rgba(255, 255, 255, .1); border: 1px solid var(--stroke); transition: transform .18s var(--ease), filter .2s; }
+.slot .back small { display: block; font-size: 12px; font-weight: 500; color: var(--green); font-variant-numeric: tabular-nums; }
+.slot .eat:active, .slot .back:active { transform: scale(.95); filter: brightness(1.15); }
+.slot.eating.ret .big { transform: translateY(-40px) scale(.6); opacity: 0; }
+.widget .w-rows { gap: 10px; }
+
+.row .txt b { white-space: normal; line-height: 1.25; }

@@ -14,7 +14,8 @@
     seller: 'partner', // bei wem gekauft wird
     items: [{ id: uid(), name: 'Geschenk', price: 15, emoji: '🎁' }],
     notes: [],
-    tx: [] // { id, itemId, from (wer handelt), to (bei wem), type: 'buy' | 'eat' | 'pay', qty, price, ts }
+    v: 3,
+    tx: [] // { id, itemId, from (wer handelt), to (bei wem), type: 'buy' | 'eat' | 'ret', qty, price, ts }
   });
 
   let state;
@@ -26,6 +27,7 @@
     state.buyer = state.payer === 'partner' ? 'partner' : 'me';
     delete state.me; delete state.partner; delete state.payer;
   }
+  if (state.v !== 3) { state.tx = []; state.v = 3; } // Buchungen aus früheren Rechenmodellen verwerfen
   state.tx.forEach((t) => { if (!t.to) t.to = t.from === 'me' ? 'partner' : 'me'; });
   if (!Array.isArray(state.notes)) state.notes = []; // { id, text, ts }
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* privat/voll */ } };
@@ -60,18 +62,12 @@
   const buyer = () => (person(state.buyer) ? state.buyer : state.people[0].id);
   const seller = () => { const b = buyer(); return person(state.seller) && state.seller !== b ? state.seller : state.people.find((p) => p.id !== b).id; };
   const sumTx = (itemId, from, type, to) => state.tx.reduce((sum, t) => sum + (t.itemId === itemId && t.from === from && t.type === type && (!to || t.to === to) ? t.qty : 0), 0);
-  // Stücke, die eine Person gekauft und noch nicht aufgegessen hat (egal bei wem)
-  const held = (itemId, key) => sumTx(itemId, key, 'buy') - sumTx(itemId, key, 'eat');
-  // Stücke, die jemand bei einer Person gekauft, aber noch nicht bezahlt hat (negativ = zu viel bezahlt)
-  const unpaid = (itemId, from, to) => sumTx(itemId, from, 'buy', to) - sumTx(itemId, from, 'pay', to);
-  const pairDebt = (from, to) => state.items.reduce((sum, it) => sum + unpaid(it.id, from, to) * it.price, 0);
-  // Kontostand einer Person: was andere bei ihr gekauft und noch nicht zurückgezahlt haben,
-  // minus dem Wert dessen, was sie selbst konsumiert hat, minus dem, was sie zurückgezahlt hat
-  const balance = (key) => round2(
-    state.people.reduce((sum, p) => sum + (p.id === key ? 0 : pairDebt(p.id, key)), 0)
-    + state.items.reduce((sum, it) => sum - (sumTx(it.id, key, 'pay') + sumTx(it.id, key, 'eat')) * it.price, 0));
-  // Geld, das a an b schuldet
-  const owes = (a, b) => round2(Math.max(0, pairDebt(a, b)) + Math.max(0, -pairDebt(b, a)));
+  // Stücke im Inventar einer Person: gekauft, weder konsumiert noch zurückgegeben (optional nur von einem Verkäufer)
+  const held = (itemId, key, from) => sumTx(itemId, key, 'buy', from) - sumTx(itemId, key, 'eat', from) - sumTx(itemId, key, 'ret', from);
+  // Stücke, für die a an b bezahlt hat (Käufe minus Rückgaben)
+  const paidUnits = (itemId, a, b) => sumTx(itemId, a, 'buy', b) - sumTx(itemId, a, 'ret', b);
+  // Kontostand: Kaufen = Käufer −Preis, Verkäufer +Preis. Zurückgeben dreht das um. Konsumieren ändert nichts.
+  const balance = (key) => round2(state.items.reduce((sum, it) => sum + it.price * state.people.reduce((n, p) => n + (p.id === key ? 0 : paidUnits(it.id, p.id, key) - paidUnits(it.id, key, p.id)), 0), 0));
   const amount = (b) => (b > 0 ? '+' : '') + money(b);
   const tone = (b) => (b > 0 ? 'pos' : b < 0 ? 'neg' : 'zero');
 
@@ -85,16 +81,11 @@
     $('widget').innerHTML = `
       <div class="w-top"><span class="mini">${EURO_SVG}</span>Finanzen</div>
       <div class="w-rows">${state.people.map((p) => {
-        const debts = state.people.filter((o) => o.id !== p.id && owes(p.id, o.id) > 0)
-          .map((o) => `<span class="chip neg"><i>${esc(who(o.id))}</i> ${money(owes(p.id, o.id))}</span>`).join('');
         const chips = heldChips(p.id);
         return `
-        <div class="w-person">
-          <div class="w-row">
-            <span><b>${esc(who(p.id))}</b> ${debts ? 'schuldet' : 'schuldet nichts'}</span>
-            ${debts ? `<div class="chips">${debts}</div>` : ''}
-          </div>
-          ${chips ? `<div class="w-row sub"><span>hat noch</span><div class="chips">${chips}</div></div>` : ''}
+        <div class="w-row">
+          <span><b>${esc(who(p.id))}</b> ${chips ? 'hat' : 'hat nichts'}</span>
+          ${chips ? `<div class="chips">${chips}</div>` : ''}
         </div>`;
       }).join('')}
       </div>`;
@@ -126,7 +117,7 @@
   function renderItems() {
     const p = buyer(), sl = seller(), receiver = esc(who(sl));
     $('items').innerHTML = state.items.map((it) => {
-      const c = held(it.id, p), q = qty[it.id] || 1, open = round2(unpaid(it.id, p, sl) * it.price);
+      const c = held(it.id, p), q = qty[it.id] || 1;
       return `
       <article class="card glass" data-id="${it.id}">
         <div class="card-top">
@@ -135,14 +126,12 @@
         </div>
         <h3>${esc(it.name || 'Ohne Namen')}</h3>
         <div class="price">${money(it.price)} pro Stück</div>
-        <div class="open ${open > 0 ? 'neg' : open < 0 ? 'pos' : ''}">${open > 0 ? `${money(open)} offen` : open < 0 ? `${money(-open)} zu viel bezahlt` : 'Nichts offen'}</div>
         <div class="stepper">
           <button data-action="qty" data-d="-1" aria-label="Weniger">−</button>
           <span>${q}×</span>
           <button data-action="qty" data-d="1" aria-label="Mehr">+</button>
         </div>
-        <button class="btn pay" data-action="buy">Kaufen<small>+${money(it.price * q)} für ${receiver}</small></button>
-        <button class="btn use" data-action="pay">Zurückzahlen<small>−${money(it.price * q)} bei ${esc(who(p))}</small></button>
+        <button class="btn pay" data-action="buy">Kaufen<small>${money(it.price * q)} an ${receiver}</small></button>
       </article>`;
     }).join('') || '<div class="empty wide">Noch keine Spalte. Lege im Zahnrad eine an.</div>';
   }
@@ -154,20 +143,20 @@
       const it = byId[t.itemId], P = esc(who(t.from)), R = esc(who(t.to)), sum = money(t.qty * t.price);
       const text = t.type === 'buy' ? `${P} kauft ${t.qty}× ${esc(it.name)} bei ${R}`
         : t.type === 'eat' ? `${P} konsumiert ${t.qty}× ${esc(it.name)}`
-        : `${P} zahlt ${R} ${sum} zurück`;
-      const val = `<div class="val ${t.type === 'buy' ? 'pos' : 'neg'}">${t.type === 'buy' ? '+' : '−'}${sum}</div>`;
+        : `${P} gibt ${R} ${t.qty}× ${esc(it.name)} zurück`;
+      const val = t.type === 'eat' ? '' : `<div class="val ${t.type === 'ret' ? 'pos' : 'neg'}">${t.type === 'ret' ? '+' : '−'}${sum}</div>`;
       return `
       <div class="row" data-tx="${t.id}">
         <div class="emoji">${esc(it.emoji)}</div>
         <div class="txt">
           <b>${text}</b>
-          <small>${fmt.format(new Date(t.ts))}${t.type === 'pay' ? '' : ` · Konto ${t.type === 'eat' ? P : R}`}</small>
+          <small>${fmt.format(new Date(t.ts))}</small>
         </div>
         ${val}
         <button class="x" data-action="undo" aria-label="Eintrag löschen">${X_SVG}</button>
       </div>`;
     }).join('');
-    $('history').innerHTML = rows || `<div class="empty">Noch keine Einträge.<br>Wähle oben, wer kauft, und tippe auf „Kaufen“. Konsumiert wird im Inventar.</div>`;
+    $('history').innerHTML = rows || `<div class="empty">Noch keine Einträge.<br>Wähle oben, wer kauft, und tippe auf „Kaufen“. Konsumieren und Zurückgeben geht im Inventar.</div>`;
   }
 
   function renderSettings() {
@@ -271,13 +260,16 @@
   const invOwner = () => (person(invPerson) ? invPerson : buyer());
   function renderInventory() {
     const o = invOwner();
-    const slots = state.items.filter((it) => held(it.id, o) > 0).map((it) => `
-        <button class="slot glass" data-action="inv-eat" data-id="${it.id}" aria-label="${esc(it.name)} konsumieren">
-          <span class="badge">×${held(it.id, o)}</span>
+    const many = state.people.length > 2;
+    const slots = state.items.map((it) => state.people.filter((sl) => sl.id !== o && held(it.id, o, sl.id) > 0).map((sl) => `
+        <article class="slot glass" data-id="${it.id}" data-seller="${sl.id}">
+          <span class="badge">×${held(it.id, o, sl.id)}</span>
           <span class="big">${esc(it.emoji)}</span>
           <b>${esc(it.name || 'Ohne Namen')}</b>
-          <span class="eat">Konsumieren <small>−${money(it.price)}</small></span>
-        </button>`).join('');
+          ${many ? `<small class="from">von ${esc(who(sl.id))}</small>` : ''}
+          <button class="eat" data-action="inv-eat">Konsumieren</button>
+          <button class="back" data-action="inv-ret">Zurückgeben<small>+${money(it.price)} von ${esc(who(sl.id))}</small></button>
+        </article>`).join('')).join('');
     $('inv-body').innerHTML = `
       <div class="seg-label">Wessen Inventar?</div>
       <div class="pick">${state.people.map((p) => `
@@ -287,7 +279,7 @@
       <div class="soon">
         <span class="app-icon inv big">${BAG_SVG}</span>
         <h2>Inventar ist leer</h2>
-        <p>${esc(who(o))} hat gerade nichts zum Konsumieren.<br>Gekauftes landet automatisch hier.</p>
+        <p>${esc(who(o))} hat gerade nichts im Inventar.<br>Gekauftes landet automatisch hier.</p>
       </div>`}`;
   }
 
@@ -316,6 +308,18 @@
     if (navigator.vibrate) navigator.vibrate(10);
   }
 
+  // Ein Stück aus dem Inventar konsumieren ('eat') oder dem Verkäufer zurückgeben ('ret')
+  function invUse(el, id, type) {
+    const slot = el.closest('.slot'), sl = slot.dataset.seller, o = invOwner(), it = state.items.find((i) => i.id === id);
+    if (!it || held(id, o, sl) < 1 || slot.classList.contains('eating')) return;
+    slot.classList.add('eating', type);
+    if (navigator.vibrate) navigator.vibrate(10);
+    setTimeout(() => {
+      state.tx.push({ id: uid(), itemId: id, from: o, to: sl, type, qty: 1, price: it.price, ts: Date.now() });
+      commit();
+    }, 260);
+  }
+
   const actions = {
     open: () => setView('manager'),
     close: () => setView('home'),
@@ -342,17 +346,8 @@
     qty: (el, id) => { qty[id] = Math.min(99, Math.max(1, (qty[id] || 1) + Number(el.dataset.d))); renderItems(); },
     buy: (el, id) => book(id, 'buy'),
     'inv-person': (el) => { invPerson = el.dataset.k; renderInventory(); },
-    'inv-eat': (el, id) => {
-      const o = invOwner(), it = state.items.find((i) => i.id === id);
-      if (!it || held(id, o) < 1 || el.classList.contains('eating')) return;
-      el.classList.add('eating');
-      if (navigator.vibrate) navigator.vibrate(10);
-      setTimeout(() => {
-        state.tx.push({ id: uid(), itemId: id, from: o, to: o, type: 'eat', qty: 1, price: it.price, ts: Date.now() });
-        commit();
-      }, 260);
-    },
-    pay: (el, id) => book(id, 'pay'),
+    'inv-eat': (el, id) => invUse(el, id, 'eat'),
+    'inv-ret': (el, id) => invUse(el, id, 'ret'),
     undo: (el) => { const id = el.closest('[data-tx]').dataset.tx; state.tx = state.tx.filter((t) => t.id !== id); commit(); },
     'note-new': () => { const n = { id: uid(), text: '', ts: Date.now() }; state.notes.push(n); openNote(n.id, true); },
     'note-open': (el) => openNote(el.dataset.note),
