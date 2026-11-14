@@ -269,3 +269,12 @@ body.sheet-open .sheet { transform: none; }
 .note-text::first-line { font-size: 24px; font-weight: 700; letter-spacing: -.01em; }
 #note-list .soon { min-height: 60vh; padding-bottom: 0; }
 .btn.first-note { width: auto; margin-top: 18px; padding: 12px 22px; background: linear-gradient(150deg, #ffe27a, #ffb21e); color: #3a2600; box-shadow: 0 8px 18px -10px rgba(245, 170, 20, .9); }
+
+/* ---------- Kaufen · Aufessen · Zurückzahlen ---------- */
+.card .open { margin-top: 2px; font-size: 13px; font-weight: 600; color: var(--faint); font-variant-numeric: tabular-nums; }
+.card .open.neg { color: var(--red); }
+.card .open.pos { color: var(--green); }
+.btn:disabled { opacity: .4; pointer-events: none; }
+.widget .w-person { display: grid; gap: 6px; }
+.widget .w-row.sub { font-size: 14px; color: var(--faint); }
+.widget .w-row.sub .chip { font-size: 14px; padding: 3px 9px; }

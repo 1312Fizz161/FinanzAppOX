@@ -14,11 +14,12 @@
     items: [{ id: uid(), name: 'Geschenk', price: 15, emoji: '🎁' }],
     notes: [],
     payer: 'me', // wer gerade zahlt: 'me' oder 'partner'
-    tx: [] // { id, itemId, from (Zahler), qty (+ bezahlt / − eingelöst), price, ts }
+    tx: [] // { id, itemId, from (wer handelt), type: 'buy' | 'eat' | 'pay', qty, price, ts }
   });
 
   let state;
   try { state = JSON.parse(localStorage.getItem(KEY)) || defaults(); } catch { state = defaults(); }
+  state.tx = (state.tx || []).filter((t) => t.type); // alte Buchungen ohne Art verwerfen
   if (!Array.isArray(state.notes)) state.notes = []; // { id, text, ts }
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* privat/voll */ } };
 
@@ -43,37 +44,36 @@
   const other = (who) => (who === 'me' ? 'partner' : 'me');
   const who = (key) => name(state[key], key === 'me' ? 'Matti' : 'Juna');
   const payer = () => (state.payer === 'partner' ? 'partner' : 'me');
-  // Guthaben (Stückzahl) einer Person in einer Spalte
-  const countOf = (itemId, key) => state.tx.reduce((sum, t) => sum + (t.itemId === itemId && (t.from || 'me') === key ? t.qty : 0), 0);
-  // Kontostand einer Person: was die andere Person bei ihr bezahlt (und noch nicht eingelöst) hat
-  const balance = (key) => Math.round(state.items.reduce((sum, it) => sum + countOf(it.id, other(key)) * it.price, 0) * 100) / 100;
+  const sumTx = (itemId, key, type) => state.tx.reduce((sum, t) => sum + (t.itemId === itemId && t.from === key && t.type === type ? t.qty : 0), 0);
+  // Stücke, die eine Person gekauft und noch nicht aufgegessen hat
+  const held = (itemId, key) => sumTx(itemId, key, 'buy') - sumTx(itemId, key, 'eat');
+  // Stücke, die eine Person gekauft, aber noch nicht bezahlt hat (negativ = zu viel bezahlt)
+  const unpaid = (itemId, key) => sumTx(itemId, key, 'buy') - sumTx(itemId, key, 'pay');
+  // Kontostand einer Person: was die andere Person bei ihr gekauft und noch nicht zurückgezahlt hat
+  const balance = (key) => Math.round(state.items.reduce((sum, it) => sum + unpaid(it.id, other(key)) * it.price, 0) * 100) / 100;
   const amount = (b) => (b > 0 ? '+' : '') + money(b);
   const tone = (b) => (b > 0 ? 'pos' : b < 0 ? 'neg' : 'zero');
 
   /* ---------- Rendern ---------- */
-  // Was eine Person der anderen schuldet: bezahlte, noch nicht eingelöste Stücke
-  // der anderen Person – und Geld für Stücke, die sie selbst ohne Guthaben eingelöst hat.
-  function owes(key) {
-    const list = [];
-    let cash = 0;
-    state.items.forEach((it) => {
-      const theirs = countOf(it.id, other(key)), mine = countOf(it.id, key);
-      if (theirs > 0) list.push(`<span class="chip">${esc(it.emoji)}${theirs > 1 ? ' ×' + theirs : ''}</span>`);
-      if (mine < 0) cash += -mine * it.price;
-    });
-    if (cash > 0) list.push(`<span class="chip neg">${money(Math.round(cash * 100) / 100)}</span>`);
-    return list;
-  }
+  const heldChips = (key) => state.items.map((it) => {
+    const c = held(it.id, key);
+    return c > 0 ? `<span class="chip">${esc(it.emoji)}${c > 1 ? ' ×' + c : ''}</span>` : '';
+  }).join('');
+  // Geld, das eine Person der anderen schuldet
+  const debt = (key) => Math.round((Math.max(0, balance(other(key))) + Math.max(0, -balance(key))) * 100) / 100;
 
   function renderHome() {
     $('widget').innerHTML = `
       <div class="w-top"><span class="mini">${EURO_SVG}</span>Finanzen</div>
       <div class="w-rows">${['me', 'partner'].map((k) => {
-        const list = owes(k);
+        const d = debt(k), chips = heldChips(k);
         return `
-        <div class="w-row">
-          <span><b>${esc(who(k))}</b> ${list.length ? 'schuldet' : 'schuldet nichts'}</span>
-          <div class="chips">${list.join('')}</div>
+        <div class="w-person">
+          <div class="w-row">
+            <span><b>${esc(who(k))}</b> ${d ? 'schuldet' : 'schuldet nichts'}</span>
+            ${d ? `<div class="chips"><span class="chip neg">${money(d)}</span></div>` : ''}
+          </div>
+          ${chips ? `<div class="w-row sub"><span>hat noch</span><div class="chips">${chips}</div></div>` : ''}
         </div>`;
       }).join('')}
       </div>`;
@@ -84,20 +84,17 @@
     $('hero').innerHTML = `
       <div class="accts">${['partner', 'me'].map((k) => {
         const b = balance(k);
-        const chips = state.items.map((it) => {
-          const c = countOf(it.id, k);
-          return c ? `<span class="chip ${c < 0 ? 'neg' : ''}">${esc(it.emoji)} ${signed(c)}</span>` : '';
-        }).join('');
+        const chips = heldChips(k);
         return `
         <article class="acct glass ${tone(b)}">
           <div class="pair"><div class="avatar ${k === 'partner' ? 'a' : 'b'}">${esc(initial(who(k)))}</div><span>${esc(who(k))}</span></div>
           <div class="label">Kontostand</div>
           <div class="amount">${amount(b)}</div>
-          <div class="chips">${chips || '<span class="chip none">Kein Guthaben</span>'}</div>
+          <div class="chips">${chips || '<span class="chip none">Nichts übrig</span>'}</div>
         </article>`;
       }).join('')}
       </div>
-      <div class="seg-label">Wer zahlt?</div>
+      <div class="seg-label">Wer kauft bei wem?</div>
       <div class="seg glass" data-on="${p}">
         <button data-action="payer" data-k="me" class="${p === 'me' ? 'on' : ''}">${esc(who('me'))} → ${esc(who('partner'))}</button>
         <button data-action="payer" data-k="partner" class="${p === 'partner' ? 'on' : ''}">${esc(who('partner'))} → ${esc(who('me'))}</button>
@@ -105,24 +102,26 @@
   }
 
   function renderItems() {
-    const p = payer(), receiver = who(other(p));
+    const p = payer(), receiver = esc(who(other(p)));
     $('items').innerHTML = state.items.map((it) => {
-      const c = countOf(it.id, p), q = qty[it.id] || 1;
+      const c = held(it.id, p), q = qty[it.id] || 1, open = Math.round(unpaid(it.id, p) * it.price * 100) / 100;
       return `
       <article class="card glass" data-id="${it.id}">
         <div class="card-top">
           <div class="emoji">${esc(it.emoji)}</div>
-          <div class="count ${c > 0 ? 'pos' : c < 0 ? 'neg' : ''}"><b>${c < 0 ? '−' + -c : c}</b><small>${esc(who(p))} hat</small></div>
+          <div class="count ${c > 0 ? 'pos' : ''}"><b>${c}</b><small>${esc(who(p))} hat</small></div>
         </div>
         <h3>${esc(it.name || 'Ohne Namen')}</h3>
         <div class="price">${money(it.price)} pro Stück</div>
+        <div class="open ${open > 0 ? 'neg' : open < 0 ? 'pos' : ''}">${open > 0 ? `${money(open)} offen` : open < 0 ? `${money(-open)} zu viel bezahlt` : 'Nichts offen'}</div>
         <div class="stepper">
           <button data-action="qty" data-d="-1" aria-label="Weniger">−</button>
           <span>${q}×</span>
           <button data-action="qty" data-d="1" aria-label="Mehr">+</button>
         </div>
-        <button class="btn pay" data-action="pay">Bezahlen<small>${money(it.price * q)} an ${esc(receiver)}</small></button>
-        <button class="btn use" data-action="use">Einlösen<small>${q}× an ${esc(receiver)}</small></button>
+        <button class="btn pay" data-action="buy">Kaufen<small>+${money(it.price * q)} für ${receiver}</small></button>
+        <button class="btn use" data-action="eat" ${c < q ? 'disabled' : ''}>Aufessen<small>${c < q ? (c ? `nur ${c} vorhanden` : 'nichts vorhanden') : `${q}× ${esc(it.name)}`}</small></button>
+        <button class="btn use" data-action="pay">Zurückzahlen<small>${money(it.price * q)} an ${receiver}</small></button>
       </article>`;
     }).join('') + `
       <button class="card glass add" data-action="add-item"><span class="plus">+</span>Neue Spalte</button>`;
@@ -132,20 +131,23 @@
     const byId = Object.fromEntries(state.items.map((it) => [it.id, it]));
     const fmt = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
     const rows = state.tx.slice().reverse().filter((t) => byId[t.itemId]).slice(0, 60).map((t) => {
-      const it = byId[t.itemId], n = Math.abs(t.qty), paid = t.qty > 0;
-      const from = t.from || 'me', P = esc(who(from)), R = esc(who(other(from)));
+      const it = byId[t.itemId], P = esc(who(t.from)), R = esc(who(other(t.from))), sum = money(t.qty * t.price);
+      const text = t.type === 'buy' ? `${P} kauft ${t.qty}× ${esc(it.name)}`
+        : t.type === 'eat' ? `${P} isst ${t.qty}× ${esc(it.name)} auf`
+        : `${P} zahlt ${sum} zurück`;
+      const val = t.type === 'buy' ? `<div class="val pos">+${sum}</div>` : t.type === 'pay' ? `<div class="val neg">−${sum}</div>` : '';
       return `
       <div class="row" data-tx="${t.id}">
         <div class="emoji">${esc(it.emoji)}</div>
         <div class="txt">
-          <b>${paid ? `${P} bezahlt ${n}× ${esc(it.name)}` : `${P} löst ${n}× ${esc(it.name)} ein`}</b>
-          <small>${fmt.format(new Date(t.ts))} · Konto ${R}</small>
+          <b>${text}</b>
+          <small>${fmt.format(new Date(t.ts))}${t.type === 'eat' ? '' : ` · Konto ${R}`}</small>
         </div>
-        <div class="val ${paid ? 'pos' : 'neg'}">${paid ? '+' : '−'}${money(n * t.price)}</div>
+        ${val}
         <button class="x" data-action="undo" aria-label="Eintrag löschen">${X_SVG}</button>
       </div>`;
     }).join('');
-    $('history').innerHTML = rows || `<div class="empty">Noch keine Einträge.<br>Wähle oben, wer zahlt, und tippe auf „Bezahlen“.</div>`;
+    $('history').innerHTML = rows || `<div class="empty">Noch keine Einträge.<br>Wähle oben, wer kauft, und tippe auf „Kaufen“.</div>`;
   }
 
   function renderSettings() {
@@ -246,10 +248,12 @@
   function openSheet() { pickerFor = confirmDel = null; confirmReset = false; renderSettings(); document.body.classList.add('sheet-open'); $('sheet').setAttribute('aria-hidden', 'false'); }
   function closeSheet() { document.activeElement && document.activeElement.blur(); document.body.classList.remove('sheet-open'); $('sheet').setAttribute('aria-hidden', 'true'); }
 
-  function book(itemId, sign) {
+  function book(itemId, type) {
     const it = state.items.find((i) => i.id === itemId);
     if (!it) return;
-    state.tx.push({ id: uid(), itemId, from: payer(), qty: sign * (qty[itemId] || 1), price: it.price, ts: Date.now() });
+    const q = qty[itemId] || 1;
+    if (type === 'eat' && held(itemId, payer()) < q) return;
+    state.tx.push({ id: uid(), itemId, from: payer(), type, qty: q, price: it.price, ts: Date.now() });
     qty[itemId] = 1;
     commit();
     const card = document.querySelector(`.card[data-id="${itemId}"]`);
@@ -265,8 +269,9 @@
     settings: openSheet,
     'settings-close': closeSheet,
     qty: (el, id) => { qty[id] = Math.min(99, Math.max(1, (qty[id] || 1) + Number(el.dataset.d))); renderItems(); },
-    pay: (el, id) => book(id, 1),
-    use: (el, id) => book(id, -1),
+    buy: (el, id) => book(id, 'buy'),
+    eat: (el, id) => book(id, 'eat'),
+    pay: (el, id) => book(id, 'pay'),
     undo: (el) => { const id = el.closest('[data-tx]').dataset.tx; state.tx = state.tx.filter((t) => t.id !== id); commit(); },
     'note-new': () => { const n = { id: uid(), text: '', ts: Date.now() }; state.notes.push(n); openNote(n.id, true); },
     'note-open': (el) => openNote(el.dataset.note),
