@@ -16,7 +16,7 @@
     notes: [],
     statMode: 'week', // Statistik: 'day' | 'week' | 'month'
     v: 3,
-    tx: [] // { id, itemId, from (wer handelt), to (bei wem), type: 'buy' | 'loan' (leihen) | 'settle' (geliehenes zahlen) | 'eat' | 'ret' (bezahltes zurück) | 'retl' (geliehenes zurück), qty, price, ts }
+    tx: [] // { id, itemId, from (wer handelt), to (bei wem), type: 'cash' (Geld einzahlen) | 'buy' | 'loan' (leihen) | 'settle' (geliehenes zahlen) | 'eat' | 'ret' (bezahltes zurück) | 'retl' (geliehenes zurück), qty, price, ts }
   });
 
   let state;
@@ -49,7 +49,8 @@
   let confirmNoteDel = false;
   let confirmMacReturn = false;
   let invPerson = null;
-  let statOffset = 0;      // 0 = aktueller Zeitraum, −1 = vorheriger …    // wessen Inventar gezeigt wird
+  let statOffset = 0;      // 0 = aktueller Zeitraum, −1 = vorheriger …
+  let cashFor = null;      // Person, für die gerade Geld hinzugefügt wird      // 0 = aktueller Zeitraum, −1 = vorheriger …    // wessen Inventar gezeigt wird
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -75,8 +76,10 @@
   const paidUnits = (itemId, a, b) => sumTx(itemId, a, 'buy', b) + sumTx(itemId, a, 'settle', b) - sumTx(itemId, a, 'ret', b);
   // Geliehene, noch nicht bezahlte (und nicht zurückgegebene) Stücke von a bei b
   const debtUnits = (itemId, a, b) => sumTx(itemId, a, 'loan', b) - sumTx(itemId, a, 'settle', b) - sumTx(itemId, a, 'retl', b);
-  // Kontostand: Kaufen = Käufer −Preis, Verkäufer +Preis. Zurückgeben dreht das um. Konsumieren ändert nichts.
-  const balance = (key) => round2(state.items.reduce((sum, it) => sum + it.price * state.people.reduce((n, p) => n + (p.id === key ? 0 : paidUnits(it.id, p.id, key) - paidUnits(it.id, key, p.id)), 0), 0));
+  // Eingezahltes Geld einer Person
+  const cashOf = (key) => state.tx.reduce((sum, t) => sum + (t.type === 'cash' && t.from === key ? t.qty * t.price : 0), 0);
+  // Kontostand: Einzahlungen, plus Verkäufe, minus Käufe. Zurückgeben dreht den Kauf um. Konsumieren ändert nichts.
+  const balance = (key) => round2(cashOf(key) + state.items.reduce((sum, it) => sum + it.price * state.people.reduce((n, p) => n + (p.id === key ? 0 : paidUnits(it.id, p.id, key) - paidUnits(it.id, key, p.id)), 0), 0));
   const amount = (b) => (b > 0 ? '+' : '') + money(b);
   const tone = (b) => (b > 0 ? 'pos' : b < 0 ? 'neg' : 'zero');
 
@@ -109,19 +112,35 @@
       <div class="accts">${state.people.map((p) => {
         const bal = balance(p.id);
         return `
-        <button class="acct glass ${tone(bal)} ${p.id === b ? 'me' : ''}" data-action="buyer" data-k="${p.id}" aria-pressed="${p.id === b}">
+        <article class="acct glass ${tone(bal)} ${p.id === b ? 'me' : ''}" data-action="buyer" data-k="${p.id}" role="button" tabindex="0" aria-pressed="${p.id === b}">
+          <button class="addcash" data-action="cash" data-k="${p.id}" aria-label="Geld für ${esc(who(p.id))} hinzufügen">+</button>
           <div class="pair">${avatar(p.id)}<span>${esc(who(p.id))}</span></div>
           <div class="label">Konto${p.id === b ? '<span class="tag">kauft</span>' : ''}</div>
           <div class="amount">${amount(bal)}</div>
           <div class="chips">${heldChips(p.id) || '<span class="chip none">Nichts übrig</span>'}</div>
-        </button>`;
+        </article>`;
       }).join('')}
       </div>
+      ${cashFormHtml()}
       ${state.people.length > 2 ? `
       <div class="seg-label">Bei wem kauft ${esc(who(b))}?</div>
       ${pick('seller', state.people.filter((p) => p.id !== b), sl)}` : `
       <div class="ctx">${esc(who(b))} kauft bei ${esc(who(sl))} · antippen zum Wechseln</div>`}
       ${debtsHtml(b)}`;
+  }
+
+  // Eingabefeld, um einer Person Geld gutzuschreiben
+  function cashFormHtml() {
+    if (!person(cashFor)) return '';
+    return `
+      <div class="cashform glass">
+        <label for="cash-amount">Geld für ${esc(who(cashFor))} hinzufügen</label>
+        <div class="cashrow">
+          <input id="cash-amount" inputmode="decimal" placeholder="z. B. 100" aria-label="Betrag in Euro">
+          <span class="unit">€</span>
+          <button class="paybtn" data-action="cash-add">Hinzufügen</button>
+        </div>
+      </div>`;
   }
 
   // Offene geliehene Beträge der Person b, mit Knopf zum Zahlen
@@ -231,8 +250,16 @@
   function renderHistory() {
     const byId = Object.fromEntries(state.items.map((it) => [it.id, it]));
     const fmt = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-    const rows = state.tx.slice().reverse().filter((t) => byId[t.itemId] && person(t.from) && person(t.to)).slice(0, 60).map((t) => {
-      const it = byId[t.itemId], P = esc(who(t.from)), R = esc(who(t.to)), sum = money(t.qty * t.price);
+    const rows = state.tx.slice().reverse().filter((t) => person(t.from) && (t.type === 'cash' || (byId[t.itemId] && person(t.to)))).slice(0, 60).map((t) => {
+      const P = esc(who(t.from)), R = esc(who(t.to)), sum = money(t.qty * t.price);
+      if (t.type === 'cash') return `
+      <div class="row" data-tx="${t.id}">
+        <div class="emoji">💶</div>
+        <div class="txt"><b>${P} zahlt ${sum} ein</b><small>${fmt.format(new Date(t.ts))}</small></div>
+        <div class="val pos">+${sum}</div>
+        <button class="x" data-action="undo" aria-label="Eintrag löschen">${X_SVG}</button>
+      </div>`;
+      const it = byId[t.itemId];
       const text = t.type === 'buy' ? `${P} kauft ${t.qty}× ${esc(it.name)} bei ${R}`
         : t.type === 'loan' ? `${P} leiht ${t.qty}× ${esc(it.name)} bei ${R}`
         : t.type === 'settle' ? `${P} zahlt ${R} ${sum} für Geliehenes`
@@ -513,6 +540,19 @@
     settings: openSheet,
     'settings-close': closeSheet,
     qty: (el, id) => { qty[id] = Math.min(99, Math.max(1, (qty[id] || 1) + Number(el.dataset.d))); renderItems(); },
+    cash: (el) => {
+      cashFor = cashFor === el.dataset.k ? null : el.dataset.k;
+      renderAccounts();
+      const i = $('cash-amount');
+      if (i) { i.scrollIntoView({ block: 'center' }); i.focus(); }
+    },
+    'cash-add': () => {
+      const i = $('cash-amount'), v = parseFloat((i && i.value || '').replace(',', '.'));
+      if (!(v > 0) || !person(cashFor)) { if (i) i.focus(); return; }
+      state.tx.push({ id: uid(), itemId: null, from: cashFor, to: cashFor, type: 'cash', qty: 1, price: round2(v), ts: Date.now() });
+      cashFor = null;
+      commit();
+    },
     buy: (el, id) => book(id, 'buy'),
     loan: (el, id) => book(id, 'loan'),
     'debt-pay': (el) => {
@@ -627,6 +667,7 @@
     const it = state.items.find((i) => i.id === e.target.closest('[data-id]').dataset.id);
     if (it) e.target.value = String(it.price).replace('.', ',');
   });
+  $('hero').addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'cash-amount') actions['cash-add'](); });
   $('items').addEventListener('animationend', (e) => e.target.classList.remove('bump'));
 
   /* ---------- Uhr ---------- */
