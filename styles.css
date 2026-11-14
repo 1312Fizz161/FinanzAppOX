@@ -245,3 +245,26 @@ body.sheet-open .sheet { transform: none; }
 /* ---------- Notes ---------- */
 .app-icon.notes { background: linear-gradient(150deg, #ffe27a 0%, #ffc02e 55%, #f59a0b 100%); box-shadow: 0 1px 0 rgba(255, 255, 255, .5) inset, 0 -8px 16px rgba(0, 0, 0, .12) inset, 0 10px 22px -8px rgba(245, 170, 20, .7); }
 .app-icon.notes svg { stroke-width: 2; }
+
+.edit-bar, .note-text, #notes.editing .list-bar, #notes.editing #note-list { display: none; }
+#notes.editing .edit-bar { display: flex; }
+#notes.editing .note-text { display: block; }
+.edit-bar h1 { font-size: 14px; font-weight: 500; color: var(--muted); }
+.round.danger { color: var(--red); font-size: 13px; font-weight: 600; }
+.round.danger.sure { width: auto; padding: 0 14px; border-radius: 21px; }
+.round.danger svg { width: 19px; height: 19px; }
+.note-list { display: grid; gap: 10px; }
+.note { display: block; width: 100%; text-align: left; border-radius: 20px; padding: 14px 16px; transition: transform .2s var(--ease); }
+.note:active { transform: scale(.98); }
+.note b { display: block; font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.note span { display: block; margin-top: 2px; font-size: 14.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.note time { margin-right: 8px; color: var(--text); opacity: .8; font-variant-numeric: tabular-nums; }
+.note-text {
+  flex: 1; width: 100%; resize: none; border: 0; outline: 0; background: none; color: var(--text);
+  font: inherit; font-size: 17px; line-height: 1.5; padding: 6px 4px calc(var(--safe-b) + 90px);
+  user-select: text; -webkit-user-select: text; caret-color: #ffc02e;
+}
+.note-text::placeholder { color: var(--faint); }
+.note-text::first-line { font-size: 24px; font-weight: 700; letter-spacing: -.01em; }
+#note-list .soon { min-height: 60vh; padding-bottom: 0; }
+.btn.first-note { width: auto; margin-top: 18px; padding: 12px 22px; background: linear-gradient(150deg, #ffe27a, #ffb21e); color: #3a2600; box-shadow: 0 8px 18px -10px rgba(245, 170, 20, .9); }

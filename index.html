@@ -64,18 +64,24 @@
 
   <!-- Notes -->
   <main id="notes" class="screen appscreen" aria-hidden="true">
-    <header class="bar">
+    <header class="bar list-bar">
       <button class="round glass" data-action="close" aria-label="Zurück">
         <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
       </button>
       <h1>Notes</h1>
-      <span class="round"></span>
+      <button class="round glass" data-action="note-new" aria-label="Neue Notiz">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
     </header>
-    <div class="soon">
-      <span class="app-icon notes big"><svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg></span>
-      <h2>Notes</h2>
-      <p>Dieser Bereich ist noch leer.</p>
-    </div>
+    <header class="bar edit-bar">
+      <button class="round glass" data-action="note-back" aria-label="Alle Notizen">
+        <svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>
+      </button>
+      <h1 id="note-date"></h1>
+      <button class="round glass danger" id="note-del" data-action="note-del" aria-label="Notiz löschen"></button>
+    </header>
+    <div class="scroll" id="note-list"></div>
+    <textarea id="note-text" class="note-text" placeholder="Notiz schreiben …" aria-label="Notiz"></textarea>
   </main>
 
   <!-- Dock -->

@@ -12,12 +12,14 @@
     me: 'Matti',
     partner: 'Juna',
     items: [{ id: uid(), name: 'Geschenk', price: 15, emoji: '🎁' }],
+    notes: [],
     payer: 'me', // wer gerade zahlt: 'me' oder 'partner'
     tx: [] // { id, itemId, from (Zahler), qty (+ bezahlt / − eingelöst), price, ts }
   });
 
   let state;
   try { state = JSON.parse(localStorage.getItem(KEY)) || defaults(); } catch { state = defaults(); }
+  if (!Array.isArray(state.notes)) state.notes = []; // { id, text, ts }
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* privat/voll */ } };
 
   // UI-Zustand (nicht gespeichert)
@@ -27,6 +29,8 @@
   let pickerFor = null;    // offene Emoji-Auswahl
   let confirmDel = null;   // Spalte, deren Löschen bestätigt werden muss
   let confirmReset = false;
+  let editing = null;      // offene Notiz
+  let confirmNoteDel = false;
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -153,6 +157,62 @@
       <div class="group"><button class="linkbtn danger" data-action="reset">${confirmReset ? 'Wirklich alles löschen? Nochmal tippen' : 'Alles zurücksetzen'}</button></div>`;
   }
 
+  /* ---------- Notes ---------- */
+  const NOTE_SVG = '<svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>';
+  function noteDate(ts, long) {
+    const d = new Date(ts), today = new Date().toDateString() === d.toDateString();
+    const time = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    if (long) return d.toLocaleDateString('de-DE', { day: 'numeric', month: 'long' }) + ', ' + time;
+    return today ? time : d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
+  }
+  function renderNotes() {
+    const notes = state.notes.slice().sort((a, b) => b.ts - a.ts);
+    $('note-list').innerHTML = notes.length ? `<div class="note-list">${notes.map((n) => {
+      const lines = n.text.split('\n').map((l) => l.trim()).filter(Boolean);
+      return `
+      <button class="note glass" data-action="note-open" data-note="${n.id}">
+        <b>${esc(lines[0] || 'Neue Notiz')}</b>
+        <span><time>${noteDate(n.ts)}</time>${esc(lines.slice(1).join(' ') || 'Kein weiterer Text')}</span>
+      </button>`;
+    }).join('')}</div>` : `
+      <div class="soon">
+        <span class="app-icon notes big">${NOTE_SVG}</span>
+        <h2>Noch keine Notizen</h2>
+        <p>Tippe auf das Plus, um die erste zu schreiben.</p>
+        <button class="btn pay first-note" data-action="note-new">Neue Notiz</button>
+      </div>`;
+  }
+  function renderNoteBar() {
+    const n = state.notes.find((x) => x.id === editing);
+    if (!n) return;
+    $('note-date').textContent = noteDate(n.ts, true);
+    $('note-del').innerHTML = confirmNoteDel ? 'Löschen?' : TRASH_SVG;
+    $('note-del').classList.toggle('sure', confirmNoteDel);
+  }
+  function openNote(id, focus) {
+    const n = state.notes.find((x) => x.id === id);
+    if (!n) return;
+    editing = id; confirmNoteDel = false;
+    $('note-text').value = n.text;
+    renderNoteBar();
+    $('notes').classList.add('editing');
+    if (focus) $('note-text').focus();
+  }
+  function closeNote() {
+    $('note-text').blur();
+    state.notes = state.notes.filter((n) => n.id !== editing || n.text.trim()); // leere Notiz verwerfen
+    editing = null;
+    $('notes').classList.remove('editing');
+    save(); renderNotes();
+  }
+  $('note-text').addEventListener('input', (e) => {
+    const n = state.notes.find((x) => x.id === editing);
+    if (!n) return;
+    n.text = e.target.value; n.ts = Date.now();
+    if (confirmNoteDel) confirmNoteDel = false;
+    save(); renderNoteBar();
+  });
+
   function renderMain() { renderHome(); renderAccounts(); renderItems(); renderHistory(); }
   function commit() { save(); renderMain(); }
 
@@ -161,6 +221,7 @@
     document.body.dataset.view = v;
     ['home', 'manager', 'mac', 'notes'].forEach((id) => $(id).setAttribute('aria-hidden', v !== id));
     if (v !== 'manager') closeSheet();
+    if (v !== 'notes' && editing) closeNote();
   }
   function openSheet() { pickerFor = confirmDel = null; confirmReset = false; renderSettings(); document.body.classList.add('sheet-open'); $('sheet').setAttribute('aria-hidden', 'false'); }
   function closeSheet() { document.activeElement && document.activeElement.blur(); document.body.classList.remove('sheet-open'); $('sheet').setAttribute('aria-hidden', 'true'); }
@@ -187,6 +248,14 @@
     pay: (el, id) => book(id, 1),
     use: (el, id) => book(id, -1),
     undo: (el) => { const id = el.closest('[data-tx]').dataset.tx; state.tx = state.tx.filter((t) => t.id !== id); commit(); },
+    'note-new': () => { const n = { id: uid(), text: '', ts: Date.now() }; state.notes.push(n); openNote(n.id, true); },
+    'note-open': (el) => openNote(el.dataset.note),
+    'note-back': closeNote,
+    'note-del': () => {
+      if (!confirmNoteDel) { confirmNoteDel = true; renderNoteBar(); return; }
+      state.notes = state.notes.filter((n) => n.id !== editing);
+      closeNote();
+    },
     'add-item': () => {
       const it = { id: uid(), name: 'Geschenk ' + (state.items.length + 1), price: 3, emoji: EMOJIS[state.items.length % EMOJIS.length] };
       state.items.push(it);
@@ -206,7 +275,7 @@
     },
     reset: () => {
       if (!confirmReset) { confirmReset = true; renderSettings(); return; }
-      state = defaults(); confirmReset = false; commit(); renderSettings();
+      state = { ...defaults(), notes: state.notes }; confirmReset = false; commit(); renderSettings();
     }
   };
 
@@ -251,4 +320,5 @@
 
   setView('home');
   renderMain();
+  renderNotes();
 })();
