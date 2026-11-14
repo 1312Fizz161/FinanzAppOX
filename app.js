@@ -29,6 +29,7 @@
   }
   if (state.v !== 3) { state.tx = []; state.v = 3; } // Buchungen aus früheren Rechenmodellen verwerfen
   state.tx.forEach((t) => { if (!t.to) t.to = t.from === 'me' ? 'partner' : 'me'; });
+  if (!state.mac) state.mac = { stamps: 0, loanUntil: null }; // MacPunkte: Stempel und Ende der Ausleihe
   if (!Array.isArray(state.notes)) state.notes = []; // { id, text, ts }
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* privat/voll */ } };
 
@@ -42,6 +43,7 @@
   let confirmDelPerson = null;
   let editing = null;      // offene Notiz
   let confirmNoteDel = false;
+  let confirmMacReturn = false;
   let invPerson = null;    // wessen Inventar gezeigt wird
 
   const $ = (id) => document.getElementById(id);
@@ -255,6 +257,49 @@
     save(); renderNoteBar();
   });
 
+  /* ---------- MacPoints ---------- */
+  const MAC_SVG = '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M12 16v4M8 20h8"/></svg>';
+  const STAMPS = 5, LOAN_MS = 24 * 60 * 60 * 1000;
+  const pad = (n) => String(n).padStart(2, '0');
+  const countdown = (ms) => { const t = Math.max(0, Math.ceil(ms / 1000)); return `${pad(Math.floor(t / 3600))}:${pad(Math.floor(t / 60) % 60)}:${pad(t % 60)}`; };
+  let macWasOver = null;
+  function renderMac(popLast) {
+    const m = state.mac, active = m.loanUntil != null, left = active ? m.loanUntil - Date.now() : 0, over = active && left <= 0;
+    macWasOver = over;
+    const until = active ? new Date(m.loanUntil).toLocaleString('de-DE', { weekday: 'long', hour: '2-digit', minute: '2-digit' }) : '';
+    $('mac-body').innerHTML = `
+      ${active ? `
+      <section class="loan glass ${over ? 'over' : ''}">
+        <div class="label">${over ? 'Zeit abgelaufen' : 'MacBook ausgeliehen'}</div>
+        <div class="time" id="mac-time">${countdown(left)}</div>
+        <div class="bar-track"><i id="mac-bar" style="width:${Math.max(0, Math.min(100, left / LOAN_MS * 100))}%"></i></div>
+        <div class="info">${over ? 'Die 24 Stunden sind um. Bitte das MacBook zurückgeben.' : `Zurückgeben bis ${until} Uhr`}</div>
+        <button class="btn use" data-action="mac-return">${confirmMacReturn ? 'Wirklich zurückgegeben? Nochmal tippen' : 'MacBook zurückgegeben'}</button>
+      </section>` : ''}
+      <div class="section-title ${active ? '' : 'first'}"><span>MacPunkte</span><small>${m.stamps} von ${STAMPS}</small></div>
+      <section class="stampcard glass">
+        <div class="stamps">${Array.from({ length: STAMPS }, (_, i) => `
+          <div class="stamp ${i < m.stamps ? 'on' : ''} ${popLast && i === m.stamps - 1 ? 'pop' : ''}" style="--r:${[-8, 6, -4, 9, -6][i]}deg">${i < m.stamps ? MAC_SVG : i + 1}</div>`).join('')}
+        </div>
+        <p class="info">${m.stamps >= STAMPS ? (active ? 'Karte voll. Ausleihen geht wieder, sobald das MacBook zurück ist.' : 'Karte voll! Du darfst das MacBook 24 Stunden ausleihen.')
+          : `Noch ${STAMPS - m.stamps} ${STAMPS - m.stamps === 1 ? 'Stempel' : 'Stempel'} bis zur Ausleihe für 24 Stunden.`}</p>
+        ${m.stamps >= STAMPS
+          ? `<button class="btn mac" data-action="mac-loan" ${active ? 'disabled' : ''}>MacBook ausleihen<small>24 Stunden · Karte wird geleert</small></button>`
+          : `<button class="btn mac" data-action="mac-stamp">Stempel sammeln<small>+1 MacPunkt</small></button>`}
+        <button class="btn use" data-action="mac-unstamp" ${m.stamps ? '' : 'disabled'}>Stempel entfernen</button>
+      </section>`;
+  }
+  function tickMac() {
+    const m = state.mac;
+    if (m.loanUntil == null) return;
+    const left = m.loanUntil - Date.now();
+    if ((left <= 0) !== macWasOver) { renderMac(); return; }
+    const t = $('mac-time'), bar = $('mac-bar');
+    if (t) t.textContent = countdown(left);
+    if (bar) bar.style.width = Math.max(0, Math.min(100, left / LOAN_MS * 100)) + '%';
+  }
+  setInterval(tickMac, 1000);
+
   /* ---------- Inventar ---------- */
   const BAG_SVG = '<svg viewBox="0 0 24 24"><path d="M8.5 7V6a3.5 3.5 0 0 1 7 0v1"/><rect x="5" y="7" width="14" height="14" rx="3.5"/><path d="M9 13h6v3.5H9z"/></svg>';
   const invOwner = () => (person(invPerson) ? invPerson : buyer());
@@ -321,6 +366,17 @@
   }
 
   const actions = {
+    'mac-stamp': () => { if (state.mac.stamps < STAMPS) { state.mac.stamps++; save(); renderMac(true); if (navigator.vibrate) navigator.vibrate(10); } },
+    'mac-unstamp': () => { if (state.mac.stamps > 0) { state.mac.stamps--; save(); renderMac(); } },
+    'mac-loan': () => {
+      if (state.mac.stamps < STAMPS || state.mac.loanUntil != null) return;
+      state.mac.stamps -= STAMPS; state.mac.loanUntil = Date.now() + LOAN_MS; confirmMacReturn = false;
+      save(); renderMac();
+    },
+    'mac-return': () => {
+      if (!confirmMacReturn) { confirmMacReturn = true; renderMac(); return; }
+      state.mac.loanUntil = null; confirmMacReturn = false; save(); renderMac();
+    },
     open: () => setView('manager'),
     close: () => setView('home'),
     toggle: (el) => setView(document.body.dataset.view === el.dataset.app ? 'home' : el.dataset.app),
@@ -426,4 +482,5 @@
   setView('home');
   renderMain();
   renderNotes();
+  renderMac();
 })();
