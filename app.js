@@ -159,7 +159,7 @@
   /* ---------- Aktionen ---------- */
   function setView(v) {
     document.body.dataset.view = v;
-    ['home', 'manager', 'mac'].forEach((id) => $(id).setAttribute('aria-hidden', v !== id));
+    ['home', 'manager', 'mac', 'notes'].forEach((id) => $(id).setAttribute('aria-hidden', v !== id));
     if (v !== 'manager') closeSheet();
   }
   function openSheet() { pickerFor = confirmDel = null; confirmReset = false; renderSettings(); document.body.classList.add('sheet-open'); $('sheet').setAttribute('aria-hidden', 'false'); }

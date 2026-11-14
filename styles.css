@@ -59,7 +59,7 @@ body:not([data-view="home"]) .wallpaper i { opacity: .32; transition: opacity .6
 }
 #home { align-items: center; }
 .appscreen { transform-origin: 50% 100%; transform: scale(.25) translateY(20%); opacity: 0; pointer-events: none; }
-body[data-view="manager"] #manager, body[data-view="mac"] #mac { transform: none; opacity: 1; pointer-events: auto; }
+body[data-view="manager"] #manager, body[data-view="mac"] #mac, body[data-view="notes"] #notes { transform: none; opacity: 1; pointer-events: auto; }
 body:not([data-view="home"]) #home { transform: scale(.9); opacity: 0; filter: blur(12px); pointer-events: none; }
 
 /* ---------- Home ---------- */
@@ -89,7 +89,7 @@ body:not([data-view="home"]) #home { transform: scale(.9); opacity: 0; filter: b
 }
 .app-icon svg { width: 23px; height: 23px; stroke: #fff; stroke-width: 2.3; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .25)); }
 .dot { width: 4px; height: 4px; border-radius: 50%; background: #fff; opacity: 0; transition: opacity .3s; }
-body[data-view="manager"] [data-app="manager"] .dot, body[data-view="mac"] [data-app="mac"] .dot { opacity: .85; }
+body[data-view="manager"] [data-app="manager"] .dot, body[data-view="mac"] [data-app="mac"] .dot, body[data-view="notes"] [data-app="notes"] .dot { opacity: .85; }
 
 /* ---------- Manager ---------- */
 .bar { display: flex; align-items: center; justify-content: space-between; padding: 0 2px 14px; }
@@ -241,3 +241,7 @@ body.sheet-open .sheet { transform: none; }
 .soon { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding-bottom: 120px; text-align: center; }
 .soon h2 { margin: 18px 0 0; font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
 .soon p { margin: 0; color: var(--muted); }
+
+/* ---------- Notes ---------- */
+.app-icon.notes { background: linear-gradient(150deg, #ffe27a 0%, #ffc02e 55%, #f59a0b 100%); box-shadow: 0 1px 0 rgba(255, 255, 255, .5) inset, 0 -8px 16px rgba(0, 0, 0, .12) inset, 0 10px 22px -8px rgba(245, 170, 20, .7); }
+.app-icon.notes svg { stroke-width: 2; }
