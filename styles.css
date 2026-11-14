@@ -190,8 +190,13 @@ body.sheet-open .sheet { transform: none; }
 .field .del { color: var(--red); width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: none; font-size: 13px; font-weight: 600; }
 .field .del.sure { width: auto; padding: 0 10px; background: rgba(255, 107, 107, .16); }
 .field .del svg { width: 17px; height: 17px; }
-.picker { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; padding: 8px 10px; border-bottom: 1px solid rgba(255, 255, 255, .08); }
-.picker button { aspect-ratio: 1; border-radius: 10px; font-size: 21px; }
+.picker { padding: 8px 10px 10px; border-bottom: 1px solid rgba(255, 255, 255, .08); }
+.picker-tabs { display: grid; grid-template-columns: repeat(9, 1fr); gap: 2px; padding: 3px; border-radius: 12px; background: rgba(0, 0, 0, .22); }
+.picker-tabs button { height: 34px; border-radius: 9px; font-size: 18px; filter: grayscale(.6); opacity: .7; }
+.picker-tabs button.on { filter: none; opacity: 1; }
+.picker-name { margin: 10px 4px 6px; font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); }
+.picker-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; max-height: 232px; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.picker-grid button { aspect-ratio: 1; border-radius: 10px; font-size: 22px; }
 .picker button:active, .picker button.on { background: var(--glass-strong); }
 .linkbtn { width: 100%; text-align: left; padding: 14px; font-size: 16px; font-weight: 500; color: var(--accent); }
 .linkbtn.danger { color: var(--red); }

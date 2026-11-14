@@ -22,6 +22,8 @@
 
   // UI-Zustand (nicht gespeichert)
   const qty = {};          // Menge je Spalte
+  const GROUPS = (window.EMOJI_GROUPS || [['🎁', 'Auswahl', EMOJIS.join(' ')]]).map(([icon, label, list]) => ({ icon, label, list: list.split(' ') }));
+  let pickerGroup = 0;     // gewählte Emoji-Gruppe
   let pickerFor = null;    // offene Emoji-Auswahl
   let confirmDel = null;   // Spalte, deren Löschen bestätigt werden muss
   let confirmReset = false;
@@ -137,7 +139,12 @@
           <input data-field="name" value="${esc(it.name)}" placeholder="Name" maxlength="24">
           <button class="del ${confirmDel === it.id ? 'sure' : ''}" data-action="del-item" aria-label="Löschen">${confirmDel === it.id ? 'Löschen?' : TRASH_SVG}</button>
         </div>
-        ${pickerFor === it.id ? `<div class="picker">${EMOJIS.map((e) => `<button data-action="emoji" data-e="${e}" class="${e === it.emoji ? 'on' : ''}">${e}</button>`).join('')}</div>` : ''}
+        ${pickerFor === it.id ? `
+        <div class="picker">
+          <div class="picker-tabs">${GROUPS.map((g, i) => `<button data-action="emoji-group" data-i="${i}" class="${i === pickerGroup ? 'on' : ''}" aria-label="${g.label}">${g.icon}</button>`).join('')}</div>
+          <div class="picker-name">${GROUPS[pickerGroup].label} · ${GROUPS[pickerGroup].list.length}</div>
+          <div class="picker-grid">${GROUPS[pickerGroup].list.map((e) => `<button data-action="emoji" data-e="${e}" class="${e === it.emoji ? 'on' : ''}">${e}</button>`).join('')}</div>
+        </div>` : ''}
         <div class="field"><label>Preis</label><input class="num" data-field="price" inputmode="decimal" value="${String(it.price).replace('.', ',')}"><span class="unit">€</span></div>
       </div>`).join('')}
       <div class="group"><button class="linkbtn" data-action="add-item">+ Neue Spalte hinzufügen</button></div>
@@ -189,6 +196,7 @@
       if (input) { input.scrollIntoView({ block: 'center' }); input.focus(); input.select(); }
     },
     picker: (el, id) => { pickerFor = pickerFor === id ? null : id; renderSettings(); },
+    'emoji-group': (el) => { pickerGroup = Number(el.dataset.i); renderSettings(); },
     emoji: (el, id) => { state.items.find((i) => i.id === id).emoji = el.dataset.e; pickerFor = null; commit(); renderSettings(); },
     'del-item': (el, id) => {
       if (confirmDel !== id) { confirmDel = id; renderSettings(); return; }
