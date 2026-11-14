@@ -39,7 +39,7 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .wallpaper i:nth-child(2) { width: 60vmax; height: 60vmax; right: -25vmax; top: 15vmax; background: #ff5fa2; opacity: .5; animation-duration: 28s; animation-direction: alternate-reverse; }
 .wallpaper i:nth-child(3) { width: 65vmax; height: 65vmax; left: -10vmax; bottom: -35vmax; background: #14c8a8; opacity: .45; animation-duration: 34s; }
 @keyframes drift { to { transform: translate3d(6vmax, 4vmax, 0) scale(1.12); } }
-body[data-view="manager"] .wallpaper i { opacity: .32; transition: opacity .6s; }
+body:not([data-view="home"]) .wallpaper i { opacity: .32; transition: opacity .6s; }
 
 .glass {
   background: var(--glass);
@@ -58,9 +58,9 @@ body[data-view="manager"] .wallpaper i { opacity: .32; transition: opacity .6s; 
   transition: transform .55s var(--ease), opacity .4s ease, filter .4s ease;
 }
 #home { align-items: center; }
-#manager { transform-origin: 50% 100%; transform: scale(.25) translateY(20%); opacity: 0; pointer-events: none; }
-body[data-view="manager"] #manager { transform: none; opacity: 1; pointer-events: auto; }
-body[data-view="manager"] #home { transform: scale(.9); opacity: 0; filter: blur(12px); pointer-events: none; }
+.appscreen { transform-origin: 50% 100%; transform: scale(.25) translateY(20%); opacity: 0; pointer-events: none; }
+body[data-view="manager"] #manager, body[data-view="mac"] #mac { transform: none; opacity: 1; pointer-events: auto; }
+body:not([data-view="home"]) #home { transform: scale(.9); opacity: 0; filter: blur(12px); pointer-events: none; }
 
 /* ---------- Home ---------- */
 .home-top { margin-top: 9vh; text-align: center; }
@@ -76,27 +76,27 @@ body[data-view="manager"] #home { transform: scale(.9); opacity: 0; filter: blur
 
 /* ---------- Dock ---------- */
 .dock {
-  position: fixed; left: 50%; bottom: calc(var(--safe-b) + 14px); transform: translateX(-50%);
-  display: flex; gap: 16px; padding: 12px 14px 10px; border-radius: 32px; z-index: 20;
+  position: fixed; left: 50%; bottom: calc(var(--safe-b) + 10px); transform: translateX(-50%);
+  display: flex; gap: 10px; padding: 7px 8px 5px; border-radius: 20px; z-index: 20;
   background: rgba(255, 255, 255, .11);
 }
-.app { display: flex; flex-direction: column; align-items: center; gap: 5px; transition: transform .25s var(--ease); }
+.app { display: flex; flex-direction: column; align-items: center; gap: 3px; transition: transform .25s var(--ease); }
 .app:active { transform: scale(.88); }
 .app-icon {
-  width: 60px; height: 60px; border-radius: 17px; display: grid; place-items: center;
+  width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center;
   background: linear-gradient(150deg, #5ef0a0 0%, #17b877 55%, #0a8f63 100%);
   box-shadow: 0 1px 0 rgba(255, 255, 255, .45) inset, 0 -8px 16px rgba(0, 0, 0, .14) inset, 0 10px 22px -8px rgba(16, 185, 129, .7);
 }
-.app-icon svg { width: 34px; height: 34px; stroke: #fff; stroke-width: 2.3; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .25)); }
-.dot { width: 5px; height: 5px; border-radius: 50%; background: #fff; opacity: 0; transition: opacity .3s; }
-body[data-view="manager"] .dot { opacity: .85; }
+.app-icon svg { width: 23px; height: 23px; stroke: #fff; stroke-width: 2.3; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .25)); }
+.dot { width: 4px; height: 4px; border-radius: 50%; background: #fff; opacity: 0; transition: opacity .3s; }
+body[data-view="manager"] [data-app="manager"] .dot, body[data-view="mac"] [data-app="mac"] .dot { opacity: .85; }
 
 /* ---------- Manager ---------- */
 .bar { display: flex; align-items: center; justify-content: space-between; padding: 0 2px 14px; }
 .bar h1 { margin: 0; font-size: 17px; font-weight: 600; }
 .round { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; transition: transform .2s var(--ease), background .2s; }
 .round:active { transform: scale(.88); background: var(--glass-strong); }
-.scroll { flex: 1; overflow-y: auto; margin: 0 -18px; padding: 4px 18px calc(var(--safe-b) + 130px); -webkit-overflow-scrolling: touch; scrollbar-width: none; -webkit-mask-image: linear-gradient(#0000, #000 14px); mask-image: linear-gradient(#0000, #000 14px); }
+.scroll { flex: 1; overflow-y: auto; margin: 0 -18px; padding: 4px 18px calc(var(--safe-b) + 96px); -webkit-overflow-scrolling: touch; scrollbar-width: none; -webkit-mask-image: linear-gradient(#0000, #000 14px); mask-image: linear-gradient(#0000, #000 14px); }
 .scroll::-webkit-scrollbar { display: none; }
 
 .hero { border-radius: 30px; padding: 24px; position: relative; overflow: hidden; }
@@ -227,3 +227,12 @@ body.sheet-open .sheet { transform: none; }
 .widget .w-row b { font-size: 26px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--text); }
 .widget .w-row b.pos { color: var(--green); }
 .widget .w-row b.neg { color: var(--red); }
+
+/* ---------- MacPoints ---------- */
+.app-icon.mac { background: linear-gradient(150deg, #7db4ff 0%, #3d7bff 55%, #2a4fd6 100%); box-shadow: 0 1px 0 rgba(255, 255, 255, .45) inset, 0 -8px 16px rgba(0, 0, 0, .14) inset, 0 10px 22px -8px rgba(61, 123, 255, .7); }
+.app-icon.mac svg { stroke-width: 2; }
+.app-icon.big { width: 84px; height: 84px; border-radius: 23px; }
+.app-icon.big svg { width: 46px; height: 46px; }
+.soon { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding-bottom: 120px; text-align: center; }
+.soon h2 { margin: 18px 0 0; font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+.soon p { margin: 0; color: var(--muted); }

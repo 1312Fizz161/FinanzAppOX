@@ -152,8 +152,7 @@
   /* ---------- Aktionen ---------- */
   function setView(v) {
     document.body.dataset.view = v;
-    $('manager').setAttribute('aria-hidden', v !== 'manager');
-    $('home').setAttribute('aria-hidden', v !== 'home');
+    ['home', 'manager', 'mac'].forEach((id) => $(id).setAttribute('aria-hidden', v !== id));
     if (v !== 'manager') closeSheet();
   }
   function openSheet() { pickerFor = confirmDel = null; confirmReset = false; renderSettings(); document.body.classList.add('sheet-open'); $('sheet').setAttribute('aria-hidden', 'false'); }
@@ -173,7 +172,7 @@
   const actions = {
     open: () => setView('manager'),
     close: () => setView('home'),
-    toggle: () => setView(document.body.dataset.view === 'manager' ? 'home' : 'manager'),
+    toggle: (el) => setView(document.body.dataset.view === el.dataset.app ? 'home' : el.dataset.app),
     payer: (el) => { state.payer = el.dataset.k; commit(); },
     settings: openSheet,
     'settings-close': closeSheet,
@@ -242,5 +241,6 @@
   tick();
   setInterval(tick, 15000);
 
+  setView('home');
   renderMain();
 })();
