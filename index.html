@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Juna &amp; Matti</title>
+<meta name="theme-color" content="#0b0b14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Juna & Matti">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-view="home">
+  <div class="wallpaper" aria-hidden="true"><i></i><i></i><i></i></div>
+
+  <!-- Startbildschirm -->
+  <main id="home" class="screen">
+    <div class="home-top">
+      <div class="clock" id="clock">09:41</div>
+      <div class="date" id="date"></div>
+    </div>
+    <button class="widget glass" data-action="open" id="widget"></button>
+  </main>
+
+  <!-- Finanz Manager -->
+  <main id="manager" class="screen" aria-hidden="true">
+    <header class="bar">
+      <button class="round glass" data-action="close" aria-label="Zurück">
+        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <h1>Finanzen</h1>
+      <button class="round glass" data-action="settings" aria-label="Einstellungen">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </button>
+    </header>
+    <div class="scroll">
+      <section id="hero" class="hero glass"></section>
+      <div class="section-title"><span>Spalten</span></div>
+      <section id="items" class="items"></section>
+      <div class="section-title"><span>Verlauf</span></div>
+      <section id="history" class="history glass"></section>
+    </div>
+  </main>
+
+  <!-- Dock -->
+  <nav class="dock glass" aria-label="Apps">
+    <button class="app" data-action="toggle" aria-label="Finanz Manager">
+      <span class="app-icon"><svg viewBox="0 0 24 24"><path d="M17.5 6.2A6.6 6.6 0 0 0 7.2 9.5M17.5 17.8A6.6 6.6 0 0 1 7.2 14.5M4.5 10h8.5M4.5 14h7"/></svg></span>
+      <span class="dot"></span>
+    </button>
+  </nav>
+
+  <!-- Einstellungen -->
+  <div class="backdrop" data-action="settings-close"></div>
+  <aside class="sheet" id="sheet" aria-hidden="true">
+    <div class="grabber"></div>
+    <div class="sheet-head">
+      <h2>Einstellungen</h2>
+      <button class="done" data-action="settings-close">Fertig</button>
+    </div>
+    <div class="sheet-body" id="settings"></div>
+  </aside>
+
+<script src="app.js"></script>
+</body>
+</html>
