@@ -65,8 +65,11 @@
   // Stücke, die jemand bei einer Person gekauft, aber noch nicht bezahlt hat (negativ = zu viel bezahlt)
   const unpaid = (itemId, from, to) => sumTx(itemId, from, 'buy', to) - sumTx(itemId, from, 'pay', to);
   const pairDebt = (from, to) => state.items.reduce((sum, it) => sum + unpaid(it.id, from, to) * it.price, 0);
-  // Kontostand einer Person: was alle anderen bei ihr gekauft und noch nicht zurückgezahlt haben
-  const balance = (key) => round2(state.people.reduce((sum, p) => sum + (p.id === key ? 0 : pairDebt(p.id, key)), 0));
+  // Kontostand einer Person: was andere bei ihr gekauft und noch nicht zurückgezahlt haben,
+  // minus dem Wert dessen, was sie selbst gegessen hat, plus dem, was sie zurückgezahlt hat
+  const balance = (key) => round2(
+    state.people.reduce((sum, p) => sum + (p.id === key ? 0 : pairDebt(p.id, key)), 0)
+    + state.items.reduce((sum, it) => sum + (sumTx(it.id, key, 'pay') - sumTx(it.id, key, 'eat')) * it.price, 0));
   // Geld, das a an b schuldet
   const owes = (a, b) => round2(Math.max(0, pairDebt(a, b)) + Math.max(0, -pairDebt(b, a)));
   const amount = (b) => (b > 0 ? '+' : '') + money(b);
@@ -152,13 +155,13 @@
       const text = t.type === 'buy' ? `${P} kauft ${t.qty}× ${esc(it.name)} bei ${R}`
         : t.type === 'eat' ? `${P} isst ${t.qty}× ${esc(it.name)} auf`
         : `${P} zahlt ${R} ${sum} zurück`;
-      const val = t.type === 'buy' ? `<div class="val pos">+${sum}</div>` : t.type === 'pay' ? `<div class="val neg">−${sum}</div>` : '';
+      const val = `<div class="val ${t.type === 'buy' ? 'pos' : 'neg'}">${t.type === 'buy' ? '+' : '−'}${sum}</div>`;
       return `
       <div class="row" data-tx="${t.id}">
         <div class="emoji">${esc(it.emoji)}</div>
         <div class="txt">
           <b>${text}</b>
-          <small>${fmt.format(new Date(t.ts))}${t.type === 'eat' ? '' : ` · Konto ${R}`}</small>
+          <small>${fmt.format(new Date(t.ts))}${t.type === 'pay' ? '' : ` · Konto ${t.type === 'eat' ? P : R}`}</small>
         </div>
         ${val}
         <button class="x" data-action="undo" aria-label="Eintrag löschen">${X_SVG}</button>
@@ -272,7 +275,7 @@
           <span class="badge">×${held(it.id, o)}</span>
           <span class="big">${esc(it.emoji)}</span>
           <b>${esc(it.name || 'Ohne Namen')}</b>
-          <span class="eat">Essen</span>
+          <span class="eat">Essen <small>−${money(it.price)}</small></span>
         </button>`).join('');
     $('inv-body').innerHTML = `
       <div class="seg-label">Wessen Inventar?</div>
