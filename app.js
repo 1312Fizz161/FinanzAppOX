@@ -181,7 +181,7 @@
           <button data-action="qty" data-d="1" aria-label="Mehr">+</button>
         </div>
         <button class="btn pay" data-action="buy">Kaufen<small>${money(it.price * q)} an ${receiver}</small></button>
-        <button class="btn loan" data-action="loan">Leihen<small>jetzt 0 € · später ${money(it.price * q)}</small></button>
+        <button class="btn loan" data-action="loan">Leihen</button>
       </article>`;
     }).join('') || '<div class="empty wide">Noch keine Spalte. Lege im Zahnrad eine an.</div>';
   }
