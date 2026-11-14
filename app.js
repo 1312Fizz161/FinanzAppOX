@@ -40,6 +40,7 @@
   let confirmDelPerson = null;
   let editing = null;      // offene Notiz
   let confirmNoteDel = false;
+  let invPerson = null;    // wessen Inventar gezeigt wird
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -138,7 +139,6 @@
           <button data-action="qty" data-d="1" aria-label="Mehr">+</button>
         </div>
         <button class="btn pay" data-action="buy">Kaufen<small>+${money(it.price * q)} für ${receiver}</small></button>
-        <button class="btn use" data-action="eat" ${c < q ? 'disabled' : ''}>Aufessen<small>${c < q ? (c ? `nur ${c} vorhanden` : 'nichts vorhanden') : `${q}× ${esc(it.name)}`}</small></button>
         <button class="btn use" data-action="pay">Zurückzahlen<small>${money(it.price * q)} an ${receiver}</small></button>
       </article>`;
     }).join('') + `
@@ -165,7 +165,7 @@
         <button class="x" data-action="undo" aria-label="Eintrag löschen">${X_SVG}</button>
       </div>`;
     }).join('');
-    $('history').innerHTML = rows || `<div class="empty">Noch keine Einträge.<br>Wähle oben, wer kauft, und tippe auf „Kaufen“.</div>`;
+    $('history').innerHTML = rows || `<div class="empty">Noch keine Einträge.<br>Wähle oben, wer kauft, und tippe auf „Kaufen“. Gegessen wird im Inventar.</div>`;
   }
 
   function renderSettings() {
@@ -259,13 +259,38 @@
     save(); renderNoteBar();
   });
 
-  function renderMain() { renderHome(); renderAccounts(); renderItems(); renderHistory(); }
+  /* ---------- Inventar ---------- */
+  const BAG_SVG = '<svg viewBox="0 0 24 24"><path d="M8.5 7V6a3.5 3.5 0 0 1 7 0v1"/><rect x="5" y="7" width="14" height="14" rx="3.5"/><path d="M9 13h6v3.5H9z"/></svg>';
+  const invOwner = () => (person(invPerson) ? invPerson : buyer());
+  function renderInventory() {
+    const o = invOwner();
+    const slots = state.items.filter((it) => held(it.id, o) > 0).map((it) => `
+        <button class="slot glass" data-action="inv-eat" data-id="${it.id}" aria-label="${esc(it.name)} essen">
+          <span class="badge">×${held(it.id, o)}</span>
+          <span class="big">${esc(it.emoji)}</span>
+          <b>${esc(it.name || 'Ohne Namen')}</b>
+          <span class="eat">Essen</span>
+        </button>`).join('');
+    $('inv-body').innerHTML = `
+      <div class="seg-label">Wessen Inventar?</div>
+      <div class="pick">${state.people.map((p) => `
+        <button class="pchip glass ${p.id === o ? 'on' : ''}" data-action="inv-person" data-k="${p.id}">${avatar(p.id, 'sm')}<span>${esc(who(p.id))}</span></button>`).join('')}
+      </div>
+      ${slots ? `<div class="inv-grid">${slots}</div>` : `
+      <div class="soon">
+        <span class="app-icon inv big">${BAG_SVG}</span>
+        <h2>Inventar ist leer</h2>
+        <p>${esc(who(o))} hat gerade nichts zum Essen.<br>Gekauftes landet automatisch hier.</p>
+      </div>`}`;
+  }
+
+  function renderMain() { renderHome(); renderAccounts(); renderItems(); renderHistory(); renderInventory(); }
   function commit() { save(); renderMain(); }
 
   /* ---------- Aktionen ---------- */
   function setView(v) {
     document.body.dataset.view = v;
-    ['home', 'manager', 'mac', 'notes'].forEach((id) => $(id).setAttribute('aria-hidden', v !== id));
+    ['home', 'manager', 'mac', 'notes', 'inv'].forEach((id) => $(id).setAttribute('aria-hidden', v !== id));
     if (v !== 'manager') closeSheet();
     if (v !== 'notes' && editing) closeNote();
   }
@@ -276,7 +301,6 @@
     const it = state.items.find((i) => i.id === itemId);
     if (!it) return;
     const q = qty[itemId] || 1;
-    if (type === 'eat' && held(itemId, buyer()) < q) return;
     state.tx.push({ id: uid(), itemId, from: buyer(), to: seller(), type, qty: q, price: it.price, ts: Date.now() });
     qty[itemId] = 1;
     commit();
@@ -310,7 +334,17 @@
     'settings-close': closeSheet,
     qty: (el, id) => { qty[id] = Math.min(99, Math.max(1, (qty[id] || 1) + Number(el.dataset.d))); renderItems(); },
     buy: (el, id) => book(id, 'buy'),
-    eat: (el, id) => book(id, 'eat'),
+    'inv-person': (el) => { invPerson = el.dataset.k; renderInventory(); },
+    'inv-eat': (el, id) => {
+      const o = invOwner(), it = state.items.find((i) => i.id === id);
+      if (!it || held(id, o) < 1 || el.classList.contains('eating')) return;
+      el.classList.add('eating');
+      if (navigator.vibrate) navigator.vibrate(10);
+      setTimeout(() => {
+        state.tx.push({ id: uid(), itemId: id, from: o, to: o, type: 'eat', qty: 1, price: it.price, ts: Date.now() });
+        commit();
+      }, 260);
+    },
     pay: (el, id) => book(id, 'pay'),
     undo: (el) => { const id = el.closest('[data-tx]').dataset.tx; state.tx = state.tx.filter((t) => t.id !== id); commit(); },
     'note-new': () => { const n = { id: uid(), text: '', ts: Date.now() }; state.notes.push(n); openNote(n.id, true); },
