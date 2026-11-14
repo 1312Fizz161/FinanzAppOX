@@ -51,11 +51,31 @@
   const tone = (b) => (b > 0 ? 'pos' : b < 0 ? 'neg' : 'zero');
 
   /* ---------- Rendern ---------- */
+  // Was eine Person der anderen schuldet: bezahlte, noch nicht eingelöste Stücke
+  // der anderen Person – und Geld für Stücke, die sie selbst ohne Guthaben eingelöst hat.
+  function owes(key) {
+    const list = [];
+    let cash = 0;
+    state.items.forEach((it) => {
+      const theirs = countOf(it.id, other(key)), mine = countOf(it.id, key);
+      if (theirs > 0) list.push(`<span class="chip">${esc(it.emoji)}${theirs > 1 ? ' ×' + theirs : ''}</span>`);
+      if (mine < 0) cash += -mine * it.price;
+    });
+    if (cash > 0) list.push(`<span class="chip neg">${money(Math.round(cash * 100) / 100)}</span>`);
+    return list;
+  }
+
   function renderHome() {
     $('widget').innerHTML = `
       <div class="w-top"><span class="mini">${EURO_SVG}</span>Finanzen</div>
-      <div class="w-rows">${['partner', 'me'].map((k) => `
-        <div class="w-row"><span>${esc(who(k))}</span><b class="${tone(balance(k))}">${amount(balance(k))}</b></div>`).join('')}
+      <div class="w-rows">${['me', 'partner'].map((k) => {
+        const list = owes(k);
+        return `
+        <div class="w-row">
+          <span><b>${esc(who(k))}</b> ${list.length ? 'schuldet' : 'schuldet nichts'}</span>
+          <div class="chips">${list.join('')}</div>
+        </div>`;
+      }).join('')}
       </div>`;
   }
 

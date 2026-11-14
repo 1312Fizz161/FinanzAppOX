@@ -227,11 +227,12 @@ body.sheet-open .sheet { transform: none; }
 .seg[data-on="partner"]::before { transform: translateX(100%); }
 .seg button { position: relative; padding: 10px 6px; font-weight: 600; font-size: 15px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color .3s; }
 .seg button.on { color: var(--text); }
-.widget .w-rows { margin-top: 12px; display: grid; gap: 6px; }
-.widget .w-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 17px; color: var(--muted); }
-.widget .w-row b { font-size: 26px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--text); }
-.widget .w-row b.pos { color: var(--green); }
-.widget .w-row b.neg { color: var(--red); }
+.widget .w-rows { margin-top: 14px; display: grid; gap: 12px; }
+.widget .w-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 10px; font-size: 17px; color: var(--muted); }
+.widget .w-row b { font-weight: 600; color: var(--text); }
+.widget .w-row .chips { margin: 0; gap: 6px; justify-content: flex-end; }
+.widget .w-row .chip { font-size: 16px; padding: 4px 11px; color: var(--text); }
+.widget .w-row .chip.neg { color: var(--red); }
 
 /* ---------- MacPoints ---------- */
 .app-icon.mac { background: linear-gradient(150deg, #7db4ff 0%, #3d7bff 55%, #2a4fd6 100%); box-shadow: 0 1px 0 rgba(255, 255, 255, .45) inset, 0 -8px 16px rgba(0, 0, 0, .14) inset, 0 10px 22px -8px rgba(61, 123, 255, .7); }
