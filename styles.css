@@ -375,3 +375,11 @@ button.acct:active { transform: scale(.97); }
 .paybtn small { display: block; font-size: 11px; font-weight: 600; opacity: .8; }
 .paybtn:active { transform: scale(.94); filter: brightness(1.12); }
 .row .val.dim { color: var(--faint); font-weight: 500; font-size: 13px; }
+
+/* ---------- Save & Load ---------- */
+.codebox { padding: 4px 14px 14px; border-bottom: 1px solid rgba(255, 255, 255, .08); display: grid; gap: 10px; }
+.codebox textarea { width: 100%; resize: none; border: 0; outline: 0; border-radius: 12px; padding: 10px 12px; background: rgba(0, 0, 0, .25); color: var(--text); font: 12px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace; word-break: break-all; user-select: text; -webkit-user-select: text; }
+.codebox textarea::placeholder { color: var(--faint); font-family: inherit; }
+.codebox .btn { margin-top: 0; }
+.codebox .hint, .hint.err { margin: 0; }
+.hint.err { color: var(--red); }

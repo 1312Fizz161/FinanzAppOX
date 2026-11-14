@@ -41,6 +41,8 @@
   let confirmDel = null;   // Spalte, deren Löschen bestätigt werden muss
   let confirmReset = false;
   let confirmDelPerson = null;
+  let dataOpen = null;     // 'save' | 'load' im Daten-Bereich
+  let loadError = '';
   let editing = null;      // offene Notiz
   let confirmNoteDel = false;
   let confirmMacReturn = false;
@@ -226,7 +228,24 @@
       <div class="group"><button class="linkbtn" data-action="add-item">+ Neue Spalte hinzufügen</button></div>
       <p class="hint">Jede Spalte hat einen eigenen Namen und Preis. Beim Löschen einer Spalte werden auch ihre Einträge entfernt.</p>
       <div class="group-title">Daten</div>
-      <div class="group"><button class="linkbtn danger" data-action="reset">${confirmReset ? 'Wirklich zurücksetzen? Nochmal tippen' : 'Alles zurücksetzen'}</button></div>
+      <div class="group">
+        <button class="linkbtn" data-action="data-save">Save · Daten als Code sichern</button>
+        ${dataOpen === 'save' ? `
+        <div class="codebox">
+          <textarea id="save-code" readonly rows="4" aria-label="Gesicherter Code">${esc(JSON.stringify(state))}</textarea>
+          <button class="btn pay" data-action="copy-code">Code kopieren</button>
+          <p class="hint">Bewahre den Code z. B. in einer Notiz oder Nachricht auf. Über „Load“ spielst du ihn auf jedem Gerät wieder ein.</p>
+        </div>` : ''}
+        <button class="linkbtn" data-action="data-load">Load · Code einspielen</button>
+        ${dataOpen === 'load' ? `
+        <div class="codebox">
+          <textarea id="load-code" rows="4" placeholder="Code hier einfügen …" aria-label="Code einfügen"></textarea>
+          ${loadError ? `<p class="hint err">${esc(loadError)}</p>` : ''}
+          <button class="btn pay" data-action="apply-code">Code übernehmen</button>
+          <p class="hint">Ersetzt alle Daten dieser App auf diesem Gerät (auch die Notizen).</p>
+        </div>` : ''}
+        <button class="linkbtn danger" data-action="reset">${confirmReset ? 'Wirklich zurücksetzen? Nochmal tippen' : 'Alles zurücksetzen'}</button>
+      </div>
       <p class="hint">Setzt Konten, Inventar und Verlauf auf null. Personen, Spalten und Notizen bleiben erhalten.</p>`;
   }
 
@@ -367,7 +386,7 @@
     if (v !== 'manager') closeSheet();
     if (v !== 'notes' && editing) closeNote();
   }
-  function openSheet() { pickerFor = confirmDel = confirmDelPerson = null; confirmReset = false; renderSettings(); document.body.classList.add('sheet-open'); $('sheet').setAttribute('aria-hidden', 'false'); }
+  function openSheet() { pickerFor = confirmDel = confirmDelPerson = dataOpen = null; loadError = ''; confirmReset = false; renderSettings(); document.body.classList.add('sheet-open'); $('sheet').setAttribute('aria-hidden', 'false'); }
   function closeSheet() { document.activeElement && document.activeElement.blur(); document.body.classList.remove('sheet-open'); $('sheet').setAttribute('aria-hidden', 'true'); }
 
   function book(itemId, type) {
@@ -469,6 +488,40 @@
       state.tx = state.tx.filter((t) => t.itemId !== id);
       confirmDel = null; commit(); renderSettings();
     },
+    'data-save': () => {
+      dataOpen = dataOpen === 'save' ? null : 'save'; loadError = '';
+      renderSettings();
+      const t = $('save-code');
+      if (t) { t.scrollIntoView({ block: 'center' }); t.focus(); t.select(); }
+    },
+    'data-load': () => {
+      dataOpen = dataOpen === 'load' ? null : 'load'; loadError = '';
+      renderSettings();
+      const t = $('load-code');
+      if (t) { t.scrollIntoView({ block: 'center' }); t.focus(); }
+    },
+    'copy-code': (el) => {
+      const t = $('save-code');
+      navigator.clipboard.writeText(t.value).then(
+        () => { el.textContent = 'Kopiert ✓'; },
+        () => { t.focus(); t.select(); el.textContent = 'Markierten Text selbst kopieren'; }
+      );
+    },
+    'apply-code': () => {
+      const t = $('load-code'), raw = t.value.trim();
+      try {
+        const d = JSON.parse(raw);
+        if (!d || !Array.isArray(d.people) || !Array.isArray(d.items) || !Array.isArray(d.tx)) throw new Error();
+        localStorage.setItem(KEY, JSON.stringify(d));
+      } catch {
+        loadError = raw ? 'Das ist kein gültiger Code. Bitte den kompletten Code einfügen.' : 'Bitte zuerst einen Code einfügen.';
+        renderSettings();
+        const x = $('load-code');
+        if (x) x.value = raw;
+        return;
+      }
+      location.reload(); // lädt den eingespielten Stand sauber
+    },
     reset: () => {
       if (!confirmReset) { confirmReset = true; renderSettings(); return; }
       state.tx = []; /* Personen, Spalten und Notizen bleiben */ confirmReset = false; commit(); renderSettings();
@@ -501,7 +554,7 @@
     } else return;
     commit();
   });
-  $('settings').addEventListener('keydown', (e) => { if (e.key === 'Enter') e.target.blur(); });
+  $('settings').addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') e.target.blur(); });
   $('settings').addEventListener('focusout', (e) => {
     if (e.target.dataset.field !== 'price') return;
     const it = state.items.find((i) => i.id === e.target.closest('[data-id]').dataset.id);
