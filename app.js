@@ -141,8 +141,7 @@
         <button class="btn pay" data-action="buy">Kaufen<small>+${money(it.price * q)} für ${receiver}</small></button>
         <button class="btn use" data-action="pay">Zurückzahlen<small>${money(it.price * q)} an ${receiver}</small></button>
       </article>`;
-    }).join('') + `
-      <button class="card glass add" data-action="add-item"><span class="plus">+</span>Neue Spalte</button>`;
+    }).join('') || '<div class="empty wide">Noch keine Spalte. Lege im Zahnrad eine an.</div>';
   }
 
   function renderHistory() {
