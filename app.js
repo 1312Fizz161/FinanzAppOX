@@ -81,11 +81,11 @@
     $('widget').innerHTML = `
       <div class="w-top"><span class="mini">${EURO_SVG}</span>Finanzen</div>
       <div class="w-rows">${state.people.map((p) => {
-        const chips = heldChips(p.id);
+        const bal = balance(p.id);
         return `
-        <div class="w-row">
-          <span><b>${esc(who(p.id))}</b> ${chips ? 'hat' : 'hat nichts'}</span>
-          ${chips ? `<div class="chips">${chips}</div>` : ''}
+        <div class="w-row money">
+          <span>${avatar(p.id, 'sm')}<b>${esc(who(p.id))}</b></span>
+          <strong class="${tone(bal)}">${amount(bal)}</strong>
         </div>`;
       }).join('')}
       </div>`;
