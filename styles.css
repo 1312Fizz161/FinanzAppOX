@@ -362,3 +362,16 @@ button.acct:active { transform: scale(.97); }
 .bar-track i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #3d7bff, #8fc0ff); transition: width 1s linear; }
 .loan.over .bar-track i { background: var(--red); }
 .loan .info { margin-top: 12px; }
+
+/* ---------- Leihen ---------- */
+.btn.loan { background: linear-gradient(150deg, #ffd98a, #f5a623); color: #3a2600; box-shadow: 0 8px 18px -10px rgba(245, 166, 35, .9); }
+.debts { display: grid; gap: 10px; margin-top: 10px; }
+.debt { display: flex; align-items: center; gap: 12px; border-radius: 20px; padding: 10px 12px; }
+.debt .emoji { width: 42px; height: 42px; border-radius: 13px; font-size: 21px; flex: none; }
+.debt .txt { flex: 1; min-width: 0; }
+.debt .txt b { display: block; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.debt .txt small { color: var(--red); font-size: 13px; font-variant-numeric: tabular-nums; }
+.paybtn { flex: none; padding: 8px 14px; border-radius: 13px; font-weight: 700; font-size: 15px; line-height: 1.15; text-align: center; font-variant-numeric: tabular-nums; color: #04251a; background: linear-gradient(150deg, #4be39a, #10a56c); box-shadow: 0 8px 18px -10px rgba(16, 185, 129, .9); transition: transform .18s var(--ease), filter .2s; }
+.paybtn small { display: block; font-size: 11px; font-weight: 600; opacity: .8; }
+.paybtn:active { transform: scale(.94); filter: brightness(1.12); }
+.row .val.dim { color: var(--faint); font-weight: 500; font-size: 13px; }

@@ -15,7 +15,7 @@
     items: [{ id: uid(), name: 'Geschenk', price: 15, emoji: '🎁' }],
     notes: [],
     v: 3,
-    tx: [] // { id, itemId, from (wer handelt), to (bei wem), type: 'buy' | 'eat' | 'ret', qty, price, ts }
+    tx: [] // { id, itemId, from (wer handelt), to (bei wem), type: 'buy' | 'loan' (leihen) | 'settle' (geliehenes zahlen) | 'eat' | 'ret' (bezahltes zurück) | 'retl' (geliehenes zurück), qty, price, ts }
   });
 
   let state;
@@ -65,9 +65,11 @@
   const seller = () => { const b = buyer(); return person(state.seller) && state.seller !== b ? state.seller : state.people.find((p) => p.id !== b).id; };
   const sumTx = (itemId, from, type, to) => state.tx.reduce((sum, t) => sum + (t.itemId === itemId && t.from === from && t.type === type && (!to || t.to === to) ? t.qty : 0), 0);
   // Stücke im Inventar einer Person: gekauft, weder konsumiert noch zurückgegeben (optional nur von einem Verkäufer)
-  const held = (itemId, key, from) => sumTx(itemId, key, 'buy', from) - sumTx(itemId, key, 'eat', from) - sumTx(itemId, key, 'ret', from);
-  // Stücke, für die a an b bezahlt hat (Käufe minus Rückgaben)
-  const paidUnits = (itemId, a, b) => sumTx(itemId, a, 'buy', b) - sumTx(itemId, a, 'ret', b);
+  const held = (itemId, key, from) => sumTx(itemId, key, 'buy', from) + sumTx(itemId, key, 'loan', from) - sumTx(itemId, key, 'eat', from) - sumTx(itemId, key, 'ret', from) - sumTx(itemId, key, 'retl', from);
+  // Stücke, für die a an b bezahlt hat (Käufe plus später Gezahltes minus Rückgaben)
+  const paidUnits = (itemId, a, b) => sumTx(itemId, a, 'buy', b) + sumTx(itemId, a, 'settle', b) - sumTx(itemId, a, 'ret', b);
+  // Geliehene, noch nicht bezahlte (und nicht zurückgegebene) Stücke von a bei b
+  const debtUnits = (itemId, a, b) => sumTx(itemId, a, 'loan', b) - sumTx(itemId, a, 'settle', b) - sumTx(itemId, a, 'retl', b);
   // Kontostand: Kaufen = Käufer −Preis, Verkäufer +Preis. Zurückgeben dreht das um. Konsumieren ändert nichts.
   const balance = (key) => round2(state.items.reduce((sum, it) => sum + it.price * state.people.reduce((n, p) => n + (p.id === key ? 0 : paidUnits(it.id, p.id, key) - paidUnits(it.id, key, p.id)), 0), 0));
   const amount = (b) => (b > 0 ? '+' : '') + money(b);
@@ -113,7 +115,28 @@
       ${state.people.length > 2 ? `
       <div class="seg-label">Bei wem kauft ${esc(who(b))}?</div>
       ${pick('seller', state.people.filter((p) => p.id !== b), sl)}` : `
-      <div class="ctx">${esc(who(b))} kauft bei ${esc(who(sl))} · antippen zum Wechseln</div>`}`;
+      <div class="ctx">${esc(who(b))} kauft bei ${esc(who(sl))} · antippen zum Wechseln</div>`}
+      ${debtsHtml(b)}`;
+  }
+
+  // Offene geliehene Beträge der Person b, mit Knopf zum Zahlen
+  function debtsHtml(b) {
+    const debts = state.items.flatMap((it) => state.people
+      .filter((p2) => p2.id !== b && debtUnits(it.id, b, p2.id) > 0)
+      .map((p2) => ({ it, p2, n: debtUnits(it.id, b, p2.id) })));
+    if (!debts.length) return '';
+    return `
+      <div class="seg-label">Geliehen · noch zu zahlen</div>
+      <div class="debts">${debts.map((d) => `
+        <div class="debt glass" data-debt="${d.it.id}|${d.p2.id}">
+          <div class="emoji">${esc(d.it.emoji)}</div>
+          <div class="txt">
+            <b>${d.n}× ${esc(d.it.name)}</b>
+            <small>${esc(who(b))} schuldet ${esc(who(d.p2.id))} ${money(d.n * d.it.price)}</small>
+          </div>
+          <button class="paybtn" data-action="debt-pay">${money(d.it.price)}<small>zahlen</small></button>
+        </div>`).join('')}
+      </div>`;
   }
 
   function renderItems() {
@@ -134,6 +157,7 @@
           <button data-action="qty" data-d="1" aria-label="Mehr">+</button>
         </div>
         <button class="btn pay" data-action="buy">Kaufen<small>${money(it.price * q)} an ${receiver}</small></button>
+        <button class="btn loan" data-action="loan">Leihen<small>jetzt 0 € · später ${money(it.price * q)}</small></button>
       </article>`;
     }).join('') || '<div class="empty wide">Noch keine Spalte. Lege im Zahnrad eine an.</div>';
   }
@@ -144,9 +168,14 @@
     const rows = state.tx.slice().reverse().filter((t) => byId[t.itemId] && person(t.from) && person(t.to)).slice(0, 60).map((t) => {
       const it = byId[t.itemId], P = esc(who(t.from)), R = esc(who(t.to)), sum = money(t.qty * t.price);
       const text = t.type === 'buy' ? `${P} kauft ${t.qty}× ${esc(it.name)} bei ${R}`
+        : t.type === 'loan' ? `${P} leiht ${t.qty}× ${esc(it.name)} bei ${R}`
+        : t.type === 'settle' ? `${P} zahlt ${R} ${sum} für Geliehenes`
         : t.type === 'eat' ? `${P} konsumiert ${t.qty}× ${esc(it.name)}`
+        : t.type === 'retl' ? `${P} gibt ${R} ${t.qty}× ${esc(it.name)} zurück (war geliehen)`
         : `${P} gibt ${R} ${t.qty}× ${esc(it.name)} zurück`;
-      const val = t.type === 'eat' ? '' : `<div class="val ${t.type === 'ret' ? 'pos' : 'neg'}">${t.type === 'ret' ? '+' : '−'}${sum}</div>`;
+      const val = t.type === 'ret' ? `<div class="val pos">+${sum}</div>`
+        : t.type === 'buy' || t.type === 'settle' ? `<div class="val neg">−${sum}</div>`
+        : t.type === 'loan' ? `<div class="val dim">${sum} offen</div>` : '';
       return `
       <div class="row" data-tx="${t.id}">
         <div class="emoji">${esc(it.emoji)}</div>
@@ -313,7 +342,7 @@
           <b>${esc(it.name || 'Ohne Namen')}</b>
           ${many ? `<small class="from">von ${esc(who(sl.id))}</small>` : ''}
           <button class="eat" data-action="inv-eat">Konsumieren</button>
-          <button class="back" data-action="inv-ret">Zurückgeben<small>+${money(it.price)} von ${esc(who(sl.id))}</small></button>
+          <button class="back" data-action="inv-ret">Zurückgeben<small>${debtUnits(it.id, o, sl.id) > 0 ? 'war geliehen · Schuld entfällt' : `+${money(it.price)} von ${esc(who(sl.id))}`}</small></button>
         </article>`).join('')).join('');
     $('inv-body').innerHTML = `
       <div class="seg-label">Wessen Inventar?</div>
@@ -357,6 +386,7 @@
   function invUse(el, id, type) {
     const slot = el.closest('.slot'), sl = slot.dataset.seller, o = invOwner(), it = state.items.find((i) => i.id === id);
     if (!it || held(id, o, sl) < 1 || slot.classList.contains('eating')) return;
+    if (type === 'ret' && debtUnits(id, o, sl) > 0) type = 'retl'; // Geliehenes zurück: kein Geld, Schuld entfällt
     slot.classList.add('eating', type);
     if (navigator.vibrate) navigator.vibrate(10);
     setTimeout(() => {
@@ -401,6 +431,15 @@
     'settings-close': closeSheet,
     qty: (el, id) => { qty[id] = Math.min(99, Math.max(1, (qty[id] || 1) + Number(el.dataset.d))); renderItems(); },
     buy: (el, id) => book(id, 'buy'),
+    loan: (el, id) => book(id, 'loan'),
+    'debt-pay': (el) => {
+      const [itemId, slId] = el.closest('[data-debt]').dataset.debt.split('|');
+      const it = state.items.find((i) => i.id === itemId), b = buyer();
+      if (!it || debtUnits(itemId, b, slId) < 1) return;
+      state.tx.push({ id: uid(), itemId, from: b, to: slId, type: 'settle', qty: 1, price: it.price, ts: Date.now() });
+      if (navigator.vibrate) navigator.vibrate(10);
+      commit();
+    },
     'inv-person': (el) => { invPerson = el.dataset.k; renderInventory(); },
     'inv-eat': (el, id) => invUse(el, id, 'eat'),
     'inv-ret': (el, id) => invUse(el, id, 'ret'),
