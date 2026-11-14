@@ -106,18 +106,18 @@
       <div class="accts">${state.people.map((p) => {
         const bal = balance(p.id);
         return `
-        <article class="acct glass ${tone(bal)}">
+        <button class="acct glass ${tone(bal)} ${p.id === b ? 'me' : ''}" data-action="buyer" data-k="${p.id}" aria-pressed="${p.id === b}">
           <div class="pair">${avatar(p.id)}<span>${esc(who(p.id))}</span></div>
-          <div class="label">Kontostand</div>
+          <div class="label">Konto${p.id === b ? '<span class="tag">kauft</span>' : ''}</div>
           <div class="amount">${amount(bal)}</div>
           <div class="chips">${heldChips(p.id) || '<span class="chip none">Nichts übrig</span>'}</div>
-        </article>`;
+        </button>`;
       }).join('')}
       </div>
       ${state.people.length > 2 ? `
       <div class="seg-label">Bei wem kauft ${esc(who(b))}?</div>
       ${pick('seller', state.people.filter((p) => p.id !== b), sl)}` : `
-      <div class="ctx">${esc(who(b))} kauft bei ${esc(who(sl))}</div>`}`;
+      <div class="ctx">${esc(who(b))} kauft bei ${esc(who(sl))} · antippen zum Wechseln</div>`}`;
   }
 
   function renderItems() {
