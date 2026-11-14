@@ -114,10 +114,10 @@
         </article>`;
       }).join('')}
       </div>
-      <div class="seg-label">Wer kauft?</div>
-      ${pick('buyer', state.people, b)}
-      <div class="seg-label">Bei wem?</div>
-      ${pick('seller', state.people.filter((p) => p.id !== b), sl)}`;
+      ${state.people.length > 2 ? `
+      <div class="seg-label">Bei wem kauft ${esc(who(b))}?</div>
+      ${pick('seller', state.people.filter((p) => p.id !== b), sl)}` : `
+      <div class="ctx">${esc(who(b))} kauft bei ${esc(who(sl))}</div>`}`;
   }
 
   function renderItems() {
@@ -180,7 +180,11 @@
         </div>`).join('')}
         <button class="linkbtn" data-action="add-person">+ Person hinzufügen</button>
       </div>
-      <p class="hint">Beim Löschen einer Person werden auch ihre Einträge entfernt.</p>
+      <div class="group-title">Ich bin</div>
+      <div class="pick in-sheet">${state.people.map((p) => `
+        <button class="pchip glass ${p.id === buyer() ? 'on' : ''}" data-action="buyer" data-k="${p.id}">${avatar(p.id, 'sm')}<span>${esc(who(p.id))}</span></button>`).join('')}
+      </div>
+      <p class="hint">Diese Person kauft und zahlt zurück. Beim Löschen einer Person werden auch ihre Einträge entfernt.</p>
       <div class="group-title">Spalten</div>
       ${state.items.map((it) => `
       <div class="group" data-id="${it.id}" style="margin-bottom:10px">
@@ -313,7 +317,7 @@
     open: () => setView('manager'),
     close: () => setView('home'),
     toggle: (el) => setView(document.body.dataset.view === el.dataset.app ? 'home' : el.dataset.app),
-    buyer: (el) => { const prev = buyer(), sl = seller(); state.buyer = el.dataset.k; state.seller = sl === state.buyer ? prev : sl; commit(); },
+    buyer: (el) => { const prev = buyer(), sl = seller(); state.buyer = el.dataset.k; state.seller = sl === state.buyer ? prev : sl; invPerson = null; commit(); renderSettings(); },
     seller: (el) => { state.seller = el.dataset.k; commit(); },
     'add-person': () => {
       const p = { id: uid(), name: '' };

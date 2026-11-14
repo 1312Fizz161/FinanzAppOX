@@ -306,3 +306,6 @@ body.sheet-open .sheet { transform: none; }
 .slot b { max-width: 100%; font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .slot .eat { margin-top: 10px; width: 100%; padding: 9px 6px; border-radius: 13px; font-weight: 600; font-size: 15px; color: #2a1250; background: linear-gradient(150deg, #e2c2ff, #a970ff); box-shadow: 0 8px 18px -10px rgba(155, 92, 255, .9); }
 #inv-body .soon { min-height: 46vh; padding-bottom: 0; }
+
+.ctx { margin: 16px 6px 0; font-size: 14px; color: var(--muted); }
+.pick.in-sheet { padding: 0 2px; }
