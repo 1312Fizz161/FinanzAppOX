@@ -206,7 +206,8 @@
       <div class="group"><button class="linkbtn" data-action="add-item">+ Neue Spalte hinzufügen</button></div>
       <p class="hint">Jede Spalte hat einen eigenen Namen und Preis. Beim Löschen einer Spalte werden auch ihre Einträge entfernt.</p>
       <div class="group-title">Daten</div>
-      <div class="group"><button class="linkbtn danger" data-action="reset">${confirmReset ? 'Wirklich alles löschen? Nochmal tippen' : 'Alles zurücksetzen'}</button></div>`;
+      <div class="group"><button class="linkbtn danger" data-action="reset">${confirmReset ? 'Wirklich zurücksetzen? Nochmal tippen' : 'Alles zurücksetzen'}</button></div>
+      <p class="hint">Setzt Konten, Inventar und Verlauf auf null. Personen, Spalten und Notizen bleiben erhalten.</p>`;
   }
 
   /* ---------- Notes ---------- */
@@ -380,7 +381,7 @@
     },
     reset: () => {
       if (!confirmReset) { confirmReset = true; renderSettings(); return; }
-      state = { ...defaults(), notes: state.notes }; confirmReset = false; commit(); renderSettings();
+      state.tx = []; confirmReset = false; // Personen, Spalten und Notizen bleiben commit(); renderSettings();
     }
   };
 
