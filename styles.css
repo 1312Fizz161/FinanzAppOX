@@ -63,10 +63,10 @@ body[data-view="manager"] #manager, body[data-view="mac"] #mac, body[data-view="
 body:not([data-view="home"]) #home { transform: scale(.9); opacity: 0; filter: blur(12px); pointer-events: none; }
 
 /* ---------- Home ---------- */
-.home-top { margin-top: 9vh; text-align: center; }
-.clock { font-size: clamp(76px, 24vw, 112px); font-weight: 600; letter-spacing: -.04em; line-height: 1; font-variant-numeric: tabular-nums; background: linear-gradient(180deg, #fff, rgba(255, 255, 255, .72)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.date { margin-top: 8px; font-size: 18px; font-weight: 500; color: var(--muted); }
-.widget { margin-top: 7vh; width: 100%; max-width: 380px; border-radius: var(--radius); padding: 20px 22px; text-align: left; transition: transform .2s var(--ease); }
+.home-top { margin-top: 2.5vh; text-align: center; }
+.clock { font-size: clamp(56px, 17vw, 80px); font-weight: 600; letter-spacing: -.04em; line-height: 1; font-variant-numeric: tabular-nums; background: linear-gradient(180deg, #fff, rgba(255, 255, 255, .72)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.date { margin-top: 4px; font-size: 16px; font-weight: 500; color: var(--muted); }
+.widget { margin-top: 3.5vh; width: 100%; max-width: 380px; border-radius: var(--radius); padding: 20px 22px; text-align: left; transition: transform .2s var(--ease); }
 .widget:active { transform: scale(.97); }
 .widget .w-top { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
 .widget .w-top .mini { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; background: linear-gradient(145deg, #4ade80, #0ea371); }
