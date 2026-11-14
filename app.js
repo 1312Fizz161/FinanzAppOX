@@ -12,7 +12,8 @@
     me: 'Matti',
     partner: 'Juna',
     items: [{ id: uid(), name: 'Geschenk', price: 15, emoji: '🎁' }],
-    tx: [] // { id, itemId, qty (+ bezahlt / − eingelöst), price, ts }
+    payer: 'me', // wer gerade zahlt: 'me' oder 'partner'
+    tx: [] // { id, itemId, from (Zahler), qty (+ bezahlt / − eingelöst), price, ts }
   });
 
   let state;
@@ -33,56 +34,59 @@
   const initial = (s) => (s.trim()[0] || '?').toUpperCase();
   const name = (s, fallback) => s.trim() || fallback;
 
-  const countOf = (itemId) => state.tx.reduce((sum, t) => sum + (t.itemId === itemId ? t.qty : 0), 0);
-  const balance = () => state.items.reduce((sum, it) => sum + countOf(it.id) * it.price, 0);
+  const other = (who) => (who === 'me' ? 'partner' : 'me');
+  const who = (key) => name(state[key], key === 'me' ? 'Matti' : 'Juna');
+  const payer = () => (state.payer === 'partner' ? 'partner' : 'me');
+  // Guthaben (Stückzahl) einer Person in einer Spalte
+  const countOf = (itemId, key) => state.tx.reduce((sum, t) => sum + (t.itemId === itemId && (t.from || 'me') === key ? t.qty : 0), 0);
+  // Kontostand einer Person: was die andere Person bei ihr bezahlt (und noch nicht eingelöst) hat
+  const balance = (key) => Math.round(state.items.reduce((sum, it) => sum + countOf(it.id, other(key)) * it.price, 0) * 100) / 100;
+  const amount = (b) => (b > 0 ? '+' : '') + money(b);
+  const tone = (b) => (b > 0 ? 'pos' : b < 0 ? 'neg' : 'zero');
 
   /* ---------- Rendern ---------- */
-  function summary() {
-    const b = Math.round(balance() * 100) / 100;
-    const partner = name(state.partner, 'Juna');
-    const note = b > 0 ? `${partner} hat ${money(b)} im Plus`
-      : b < 0 ? `${partner} ist ${money(-b)} im Minus`
-      : 'Alles ausgeglichen';
-    return { b, note, text: (b > 0 ? '+' : '') + money(b) };
-  }
-
   function renderHome() {
-    const s = summary();
     $('widget').innerHTML = `
       <div class="w-top"><span class="mini">${EURO_SVG}</span>Finanzen</div>
-      <div class="w-amount" style="color:${s.b > 0 ? 'var(--green)' : s.b < 0 ? 'var(--red)' : 'inherit'}">${s.text}</div>
-      <div class="w-sub">${esc(s.note)}</div>`;
+      <div class="w-rows">${['partner', 'me'].map((k) => `
+        <div class="w-row"><span>${esc(who(k))}</span><b class="${tone(balance(k))}">${amount(balance(k))}</b></div>`).join('')}
+      </div>`;
   }
 
-  function renderHero() {
-    const s = summary();
-    const me = name(state.me, 'Matti'), partner = name(state.partner, 'Juna');
-    const chips = state.items.map((it) => {
-      const c = countOf(it.id);
-      return c ? `<span class="chip ${c < 0 ? 'neg' : ''}">${esc(it.emoji)} ${signed(c)} ${esc(it.name)}</span>` : '';
-    }).join('');
-    const hero = $('hero');
-    hero.className = 'hero glass ' + (s.b > 0 ? 'pos' : s.b < 0 ? 'neg' : 'zero');
-    hero.innerHTML = `
-      <div class="pair">
-        <div class="avatars"><div class="avatar a">${esc(initial(partner))}</div><div class="avatar b">${esc(initial(me))}</div></div>
-        <span>${esc(partner)} &amp; ${esc(me)}</span>
+  function renderAccounts() {
+    const p = payer();
+    $('hero').innerHTML = `
+      <div class="accts">${['partner', 'me'].map((k) => {
+        const b = balance(k);
+        const chips = state.items.map((it) => {
+          const c = countOf(it.id, k);
+          return c ? `<span class="chip ${c < 0 ? 'neg' : ''}">${esc(it.emoji)} ${signed(c)}</span>` : '';
+        }).join('');
+        return `
+        <article class="acct glass ${tone(b)}">
+          <div class="pair"><div class="avatar ${k === 'partner' ? 'a' : 'b'}">${esc(initial(who(k)))}</div><span>${esc(who(k))}</span></div>
+          <div class="label">Kontostand</div>
+          <div class="amount">${amount(b)}</div>
+          <div class="chips">${chips || '<span class="chip none">Kein Guthaben</span>'}</div>
+        </article>`;
+      }).join('')}
       </div>
-      <div class="label">Kontostand ${esc(partner)}</div>
-      <div class="amount">${s.text}</div>
-      <div class="note">${esc(s.note)}</div>
-      ${chips ? `<div class="chips">${chips}</div>` : ''}`;
+      <div class="seg-label">Wer zahlt?</div>
+      <div class="seg glass" data-on="${p}">
+        <button data-action="payer" data-k="me" class="${p === 'me' ? 'on' : ''}">${esc(who('me'))} → ${esc(who('partner'))}</button>
+        <button data-action="payer" data-k="partner" class="${p === 'partner' ? 'on' : ''}">${esc(who('partner'))} → ${esc(who('me'))}</button>
+      </div>`;
   }
 
   function renderItems() {
-    const partner = name(state.partner, 'Juna');
+    const p = payer(), receiver = who(other(p));
     $('items').innerHTML = state.items.map((it) => {
-      const c = countOf(it.id), q = qty[it.id] || 1;
+      const c = countOf(it.id, p), q = qty[it.id] || 1;
       return `
       <article class="card glass" data-id="${it.id}">
         <div class="card-top">
           <div class="emoji">${esc(it.emoji)}</div>
-          <div class="count ${c > 0 ? 'pos' : c < 0 ? 'neg' : ''}"><b>${c < 0 ? '−' + -c : c}</b><small>Guthaben</small></div>
+          <div class="count ${c > 0 ? 'pos' : c < 0 ? 'neg' : ''}"><b>${c < 0 ? '−' + -c : c}</b><small>${esc(who(p))} hat</small></div>
         </div>
         <h3>${esc(it.name || 'Ohne Namen')}</h3>
         <div class="price">${money(it.price)} pro Stück</div>
@@ -91,39 +95,39 @@
           <span>${q}×</span>
           <button data-action="qty" data-d="1" aria-label="Mehr">+</button>
         </div>
-        <button class="btn pay" data-action="pay">Bezahlen<small>${money(it.price * q)} an ${esc(partner)}</small></button>
-        <button class="btn use" data-action="use">Einlösen<small>−${q} ${esc(it.name)}</small></button>
+        <button class="btn pay" data-action="pay">Bezahlen<small>${money(it.price * q)} an ${esc(receiver)}</small></button>
+        <button class="btn use" data-action="use">Einlösen<small>${q}× an ${esc(receiver)}</small></button>
       </article>`;
     }).join('') + `
       <button class="card glass add" data-action="add-item"><span class="plus">+</span>Neue Spalte</button>`;
   }
 
   function renderHistory() {
-    const me = name(state.me, 'Matti'), partner = name(state.partner, 'Juna');
     const byId = Object.fromEntries(state.items.map((it) => [it.id, it]));
     const fmt = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
     const rows = state.tx.slice().reverse().filter((t) => byId[t.itemId]).slice(0, 60).map((t) => {
       const it = byId[t.itemId], n = Math.abs(t.qty), paid = t.qty > 0;
+      const from = t.from || 'me', P = esc(who(from)), R = esc(who(other(from)));
       return `
       <div class="row" data-tx="${t.id}">
         <div class="emoji">${esc(it.emoji)}</div>
         <div class="txt">
-          <b>${paid ? `${esc(me)} bezahlt ${n}× ${esc(it.name)}` : `${esc(me)} löst ${n}× ${esc(it.name)} ein`}</b>
-          <small>${fmt.format(new Date(t.ts))}</small>
+          <b>${paid ? `${P} bezahlt ${n}× ${esc(it.name)}` : `${P} löst ${n}× ${esc(it.name)} ein`}</b>
+          <small>${fmt.format(new Date(t.ts))} · Konto ${R}</small>
         </div>
         <div class="val ${paid ? 'pos' : 'neg'}">${paid ? '+' : '−'}${money(n * t.price)}</div>
         <button class="x" data-action="undo" aria-label="Eintrag löschen">${X_SVG}</button>
       </div>`;
     }).join('');
-    $('history').innerHTML = rows || `<div class="empty">Noch keine Einträge.<br>Tippe auf „Bezahlen“, wenn du ${esc(partner)} Geld gibst.</div>`;
+    $('history').innerHTML = rows || `<div class="empty">Noch keine Einträge.<br>Wähle oben, wer zahlt, und tippe auf „Bezahlen“.</div>`;
   }
 
   function renderSettings() {
     $('settings').innerHTML = `
       <div class="group-title">Personen</div>
       <div class="group">
-        <div class="field"><label>Ich</label><input data-person="me" value="${esc(state.me)}" placeholder="Matti" maxlength="20"></div>
-        <div class="field"><label>Partnerin</label><input data-person="partner" value="${esc(state.partner)}" placeholder="Juna" maxlength="20"></div>
+        <div class="field"><label>Person 1</label><input data-person="me" value="${esc(state.me)}" placeholder="Matti" maxlength="20"></div>
+        <div class="field"><label>Person 2</label><input data-person="partner" value="${esc(state.partner)}" placeholder="Juna" maxlength="20"></div>
       </div>
       <div class="group-title">Spalten</div>
       ${state.items.map((it) => `
@@ -142,7 +146,7 @@
       <div class="group"><button class="linkbtn danger" data-action="reset">${confirmReset ? 'Wirklich alles löschen? Nochmal tippen' : 'Alles zurücksetzen'}</button></div>`;
   }
 
-  function renderMain() { renderHome(); renderHero(); renderItems(); renderHistory(); }
+  function renderMain() { renderHome(); renderAccounts(); renderItems(); renderHistory(); }
   function commit() { save(); renderMain(); }
 
   /* ---------- Aktionen ---------- */
@@ -158,7 +162,7 @@
   function book(itemId, sign) {
     const it = state.items.find((i) => i.id === itemId);
     if (!it) return;
-    state.tx.push({ id: uid(), itemId, qty: sign * (qty[itemId] || 1), price: it.price, ts: Date.now() });
+    state.tx.push({ id: uid(), itemId, from: payer(), qty: sign * (qty[itemId] || 1), price: it.price, ts: Date.now() });
     qty[itemId] = 1;
     commit();
     const card = document.querySelector(`.card[data-id="${itemId}"]`);
@@ -170,6 +174,7 @@
     open: () => setView('manager'),
     close: () => setView('home'),
     toggle: () => setView(document.body.dataset.view === 'manager' ? 'home' : 'manager'),
+    payer: (el) => { state.payer = el.dataset.k; commit(); },
     settings: openSheet,
     'settings-close': closeSheet,
     qty: (el, id) => { qty[id] = Math.min(99, Math.max(1, (qty[id] || 1) + Number(el.dataset.d))); renderItems(); },
