@@ -153,7 +153,7 @@
     const rows = state.tx.slice().reverse().filter((t) => byId[t.itemId] && person(t.from) && person(t.to)).slice(0, 60).map((t) => {
       const it = byId[t.itemId], P = esc(who(t.from)), R = esc(who(t.to)), sum = money(t.qty * t.price);
       const text = t.type === 'buy' ? `${P} kauft ${t.qty}× ${esc(it.name)} bei ${R}`
-        : t.type === 'eat' ? `${P} isst ${t.qty}× ${esc(it.name)} auf`
+        : t.type === 'eat' ? `${P} konsumiert ${t.qty}× ${esc(it.name)}`
         : `${P} zahlt ${R} ${sum} zurück`;
       const val = `<div class="val ${t.type === 'buy' ? 'pos' : 'neg'}">${t.type === 'buy' ? '+' : '−'}${sum}</div>`;
       return `
@@ -167,7 +167,7 @@
         <button class="x" data-action="undo" aria-label="Eintrag löschen">${X_SVG}</button>
       </div>`;
     }).join('');
-    $('history').innerHTML = rows || `<div class="empty">Noch keine Einträge.<br>Wähle oben, wer kauft, und tippe auf „Kaufen“. Gegessen wird im Inventar.</div>`;
+    $('history').innerHTML = rows || `<div class="empty">Noch keine Einträge.<br>Wähle oben, wer kauft, und tippe auf „Kaufen“. Konsumiert wird im Inventar.</div>`;
   }
 
   function renderSettings() {
@@ -272,11 +272,11 @@
   function renderInventory() {
     const o = invOwner();
     const slots = state.items.filter((it) => held(it.id, o) > 0).map((it) => `
-        <button class="slot glass" data-action="inv-eat" data-id="${it.id}" aria-label="${esc(it.name)} essen">
+        <button class="slot glass" data-action="inv-eat" data-id="${it.id}" aria-label="${esc(it.name)} konsumieren">
           <span class="badge">×${held(it.id, o)}</span>
           <span class="big">${esc(it.emoji)}</span>
           <b>${esc(it.name || 'Ohne Namen')}</b>
-          <span class="eat">Essen <small>−${money(it.price)}</small></span>
+          <span class="eat">Konsumieren <small>−${money(it.price)}</small></span>
         </button>`).join('');
     $('inv-body').innerHTML = `
       <div class="seg-label">Wessen Inventar?</div>
@@ -287,7 +287,7 @@
       <div class="soon">
         <span class="app-icon inv big">${BAG_SVG}</span>
         <h2>Inventar ist leer</h2>
-        <p>${esc(who(o))} hat gerade nichts zum Essen.<br>Gekauftes landet automatisch hier.</p>
+        <p>${esc(who(o))} hat gerade nichts zum Konsumieren.<br>Gekauftes landet automatisch hier.</p>
       </div>`}`;
   }
 

@@ -319,3 +319,6 @@ button.acct:active { transform: scale(.97); }
 .empty.wide { grid-column: 1 / -1; }
 
 .slot .eat small { font-weight: 500; opacity: .75; font-variant-numeric: tabular-nums; }
+
+.slot .eat { line-height: 1.2; }
+.slot .eat small { display: block; font-size: 12px; }
