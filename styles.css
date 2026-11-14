@@ -383,3 +383,23 @@ button.acct:active { transform: scale(.97); }
 .codebox .btn { margin-top: 0; }
 .codebox .hint, .hint.err { margin: 0; }
 .hint.err { color: var(--red); }
+
+/* ---------- Statistik ---------- */
+.stats { border-radius: var(--radius); padding: 16px; display: grid; gap: 14px; }
+.seg.three { grid-template-columns: repeat(3, 1fr); }
+.seg.three::before { width: calc((100% - 8px) / 3); }
+.seg.three[data-on="day"]::before { transform: none; }
+.seg.three[data-on="week"]::before { transform: translateX(100%); }
+.seg.three[data-on="month"]::before { transform: translateX(200%); }
+.period { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.period span { flex: 1; text-align: center; font-weight: 600; font-size: 15px; min-width: 0; }
+.round.sm { width: 34px; height: 34px; font-size: 19px; color: var(--muted); }
+.round.sm:disabled { opacity: .3; pointer-events: none; }
+.stat-row { display: grid; gap: 7px; }
+.stat-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.stat-top .pair span { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-top b { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bar-track.stat { margin-top: 0; height: 6px; }
+.bar-track.stat i { background: linear-gradient(90deg, #9b5cff, #d3a4ff); transition: width .45s var(--ease); }
+.stats .chips { margin: 0; }
+.stats .empty { padding: 8px 0 2px; }

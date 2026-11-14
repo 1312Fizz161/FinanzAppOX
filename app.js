@@ -14,6 +14,7 @@
     seller: 'partner', // bei wem gekauft wird
     items: [{ id: uid(), name: 'Geschenk', price: 15, emoji: '🎁' }],
     notes: [],
+    statMode: 'week', // Statistik: 'day' | 'week' | 'month'
     v: 3,
     tx: [] // { id, itemId, from (wer handelt), to (bei wem), type: 'buy' | 'loan' (leihen) | 'settle' (geliehenes zahlen) | 'eat' | 'ret' (bezahltes zurück) | 'retl' (geliehenes zurück), qty, price, ts }
   });
@@ -29,6 +30,7 @@
   }
   if (state.v !== 3) { state.tx = []; state.v = 3; } // Buchungen aus früheren Rechenmodellen verwerfen
   state.tx.forEach((t) => { if (!t.to) t.to = t.from === 'me' ? 'partner' : 'me'; });
+  if (!['day', 'week', 'month'].includes(state.statMode)) state.statMode = 'week';
   if (!state.mac) state.mac = { stamps: 0, loanUntil: null }; // MacPunkte: Stempel und Ende der Ausleihe
   if (!Array.isArray(state.notes)) state.notes = []; // { id, text, ts }
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* privat/voll */ } };
@@ -46,7 +48,8 @@
   let editing = null;      // offene Notiz
   let confirmNoteDel = false;
   let confirmMacReturn = false;
-  let invPerson = null;    // wessen Inventar gezeigt wird
+  let invPerson = null;
+  let statOffset = 0;      // 0 = aktueller Zeitraum, −1 = vorheriger …    // wessen Inventar gezeigt wird
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -162,6 +165,67 @@
         <button class="btn loan" data-action="loan">Leihen<small>jetzt 0 € · später ${money(it.price * q)}</small></button>
       </article>`;
     }).join('') || '<div class="empty wide">Noch keine Spalte. Lege im Zahnrad eine an.</div>';
+  }
+
+  /* ---------- Statistik ---------- */
+  function statRange() {
+    const m = state.statMode, o = statOffset, now = new Date();
+    let start, end, label;
+    if (m === 'day') {
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate() + o);
+      end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + o + 1);
+      label = o === 0 ? 'Heute' : o === -1 ? 'Gestern' : start.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
+    } else if (m === 'month') {
+      start = new Date(now.getFullYear(), now.getMonth() + o, 1);
+      end = new Date(now.getFullYear(), now.getMonth() + o + 1, 1);
+      label = start.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+    } else {
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7) + o * 7);
+      end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7);
+      const last = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6);
+      const f = (d, withM) => d.toLocaleDateString('de-DE', withM ? { day: 'numeric', month: 'short' } : { day: 'numeric' });
+      label = (o === 0 ? 'Diese Woche · ' : '') + f(start, start.getMonth() !== last.getMonth()) + ' – ' + f(last, true);
+    }
+    return { start: +start, end: +end, label };
+  }
+
+  function renderStats() {
+    const m = state.statMode, { start, end, label } = statRange();
+    const rows = state.people.map((p) => {
+      let total = 0;
+      const counts = {};
+      state.tx.forEach((t) => {
+        if (t.type === 'eat' && t.from === p.id && t.ts >= start && t.ts < end) {
+          total += t.qty * t.price;
+          counts[t.itemId] = (counts[t.itemId] || 0) + t.qty;
+        }
+      });
+      return { p, total: round2(total), counts };
+    });
+    const max = Math.max(...rows.map((r) => r.total), 0);
+    $('stats').innerHTML = `
+      <div class="seg glass three" data-on="${m}">
+        <button data-action="stat-mode" data-k="day" class="${m === 'day' ? 'on' : ''}">Tag</button>
+        <button data-action="stat-mode" data-k="week" class="${m === 'week' ? 'on' : ''}">Woche</button>
+        <button data-action="stat-mode" data-k="month" class="${m === 'month' ? 'on' : ''}">Monat</button>
+      </div>
+      <div class="period">
+        <button class="round glass sm" data-action="stat-prev" aria-label="Zeitraum zurück">‹</button>
+        <span>${esc(label)}</span>
+        <button class="round glass sm" data-action="stat-next" aria-label="Zeitraum vor" ${statOffset ? '' : 'disabled'}>›</button>
+      </div>
+      ${max > 0 ? rows.map(({ p, total, counts }) => `
+      <div class="stat-row">
+        <div class="stat-top">
+          <div class="pair">${avatar(p.id, 'sm')}<span>${esc(who(p.id))}</span></div>
+          <b>${money(total)}</b>
+        </div>
+        <div class="bar-track stat"><i style="width:${Math.round(total / max * 100)}%"></i></div>
+        <div class="chips">${Object.entries(counts).map(([id, n]) => {
+          const it = state.items.find((i) => i.id === id);
+          return it ? `<span class="chip">${esc(it.emoji)}${n > 1 ? ' ×' + n : ''}</span>` : '';
+        }).join('') || '<span class="chip none">Nichts konsumiert</span>'}</div>
+      </div>`).join('') : '<div class="empty">In diesem Zeitraum wurde nichts konsumiert.</div>'}`;
   }
 
   function renderHistory() {
@@ -376,7 +440,7 @@
       </div>`}`;
   }
 
-  function renderMain() { renderHome(); renderAccounts(); renderItems(); renderHistory(); renderInventory(); }
+  function renderMain() { renderHome(); renderAccounts(); renderItems(); renderStats(); renderHistory(); renderInventory(); }
   function commit() { save(); renderMain(); }
 
   /* ---------- Aktionen ---------- */
@@ -488,6 +552,9 @@
       state.tx = state.tx.filter((t) => t.itemId !== id);
       confirmDel = null; commit(); renderSettings();
     },
+    'stat-mode': (el) => { state.statMode = el.dataset.k; statOffset = 0; save(); renderStats(); },
+    'stat-prev': () => { statOffset--; renderStats(); },
+    'stat-next': () => { if (statOffset < 0) { statOffset++; renderStats(); } },
     'data-save': () => {
       dataOpen = dataOpen === 'save' ? null : 'save'; loadError = '';
       renderSettings();
