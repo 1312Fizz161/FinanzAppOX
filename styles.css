@@ -419,3 +419,24 @@ body.sheet-open .sheet { transform: none; }
 .field.bulk label { flex: none; }
 .field.bulk .unit { white-space: nowrap; font-size: 14px; }
 .field input.num.tiny { flex: 0 0 40px; }
+
+/* ---------- Login ---------- */
+.lockscreen { position: fixed; inset: 0; z-index: 50; display: none; padding: 24px 18px; background: rgba(8, 8, 18, .45); -webkit-backdrop-filter: blur(22px) saturate(140%); backdrop-filter: blur(22px) saturate(140%); overflow-y: auto; }
+body.locked .lockscreen { display: flex; }
+body.locked .dock { display: none; }
+.lock-card { width: 100%; max-width: 360px; margin: auto; border-radius: 30px; padding: 26px 20px 18px; display: grid; gap: 12px; justify-items: center; }
+.lock-card .app-icon.lock-icon { width: 64px; height: 64px; border-radius: 18px; }
+.lock-card .app-icon.lock-icon svg { width: 36px; height: 36px; }
+.lock-card h2 { margin: 2px 0 2px; font-size: 24px; font-weight: 700; letter-spacing: -.01em; }
+.lock-card input { width: 100%; background: rgba(0, 0, 0, .25); border: 1px solid var(--stroke); outline: 0; border-radius: 14px; padding: 12px 14px; font-size: 17px; color: var(--text); user-select: text; -webkit-user-select: text; }
+.lock-card input:focus { border-color: rgba(255, 255, 255, .45); }
+.lock-card input::placeholder { color: var(--faint); }
+.lock-card .seg-label { margin: 4px 0 0; }
+.lock-card .pick { justify-content: center; }
+.lock-card .btn { width: 100%; margin-top: 2px; }
+.lock-card .hint { margin: 0; }
+.linkbtn.center { text-align: center; }
+.plus-sm { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, .12); font-size: 16px; flex: none; }
+.acc-as { flex: 1; padding: 12px 0; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hint.inpad { padding: 0 14px 12px; margin: 0; }
+.slot .viewonly { margin-top: 10px; color: var(--faint); font-size: 13px; }

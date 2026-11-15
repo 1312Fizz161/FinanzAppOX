@@ -44,6 +44,7 @@
     if (!['day', 'week', 'month'].includes(st.statMode)) st.statMode = 'week';
     if (!st.mac) st.mac = { stamps: 0, loanUntil: null }; // MacPunkte: Stempel und Ende der Ausleihe
     if (!Array.isArray(st.notes)) st.notes = []; // { id, text, ts }
+    if (!Array.isArray(st.accounts)) st.accounts = []; // { id, user, salt, hash, personId }
     if (typeof st.ts !== 'number') st.ts = 0; // Zeit der letzten Änderung (für den Online-Abgleich)
     return st;
   }
@@ -88,7 +89,25 @@
     const c = COLORS[Math.max(0, state.people.indexOf(person(id))) % COLORS.length];
     return `<div class="avatar ${cls}" style="background:linear-gradient(145deg, ${c[0]}, ${c[1]})">${esc(who(id)[0].toUpperCase())}</div>`;
   };
-  const buyer = () => (person(state.buyer) ? state.buyer : state.people[0].id);
+  /* ---------- Login-Konten ---------- */
+  const SKEY = 'finanzappox.session';
+  let session = null;
+  try { session = JSON.parse(localStorage.getItem(SKEY) || 'null'); } catch { session = null; }
+  const account = () => (session && state.accounts.find((a) => a.id === session.accountId)) || null;
+  // Die Person des angemeldeten Kontos (null, wenn nicht angemeldet oder Person gelöscht)
+  const myPerson = () => { const a = account(); return a && person(a.personId) ? a.personId : null; };
+  async function hashPw(salt, pw) {
+    const text = salt + ':' + pw;
+    if (crypto && crypto.subtle) {
+      const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+      return Array.from(new Uint8Array(h), (b) => b.toString(16).padStart(2, '0')).join('');
+    }
+    let a = 0x811c9dc5, out = ''; // Notlösung ohne WebCrypto
+    for (let r = 0; r < 8; r++) { for (const c of text) { a ^= c.codePointAt(0) + r; a = Math.imul(a, 0x01000193) >>> 0; } out += a.toString(16).padStart(8, '0'); }
+    return 'x' + out;
+  }
+
+  const buyer = () => myPerson() || (person(state.buyer) ? state.buyer : state.people[0].id);
   const seller = () => { const b = buyer(); return person(state.seller) && state.seller !== b ? state.seller : state.people.find((p) => p.id !== b).id; };
   const sumTx = (itemId, from, type, to) => state.tx.reduce((sum, t) => sum + (t.itemId === itemId && t.from === from && t.type === type && (!to || t.to === to) ? t.qty : 0), 0);
   // Stücke im Inventar einer Person: gekauft, weder konsumiert noch zurückgegeben (optional nur von einem Verkäufer)
@@ -140,7 +159,7 @@
   }
 
   function renderAccounts() {
-    const b = buyer(), sl = seller();
+    const b = buyer(), sl = seller(), fixed = !!myPerson();
     const pick = (action, list, on) => `<div class="pick">${list.map((p) => `
         <button class="pchip glass ${p.id === on ? 'on' : ''}" data-action="${action}" data-k="${p.id}">${avatar(p.id, 'sm')}<span>${esc(who(p.id))}</span></button>`).join('')}
       </div>`;
@@ -148,7 +167,7 @@
       <div class="accts">${state.people.map((p) => {
         const bal = balance(p.id);
         return `
-        <article class="acct glass ${tone(bal)} ${p.id === b ? 'me' : ''}" data-action="buyer" data-k="${p.id}" role="button" tabindex="0" aria-pressed="${p.id === b}">
+        <article class="acct glass ${tone(bal)} ${p.id === b ? 'me' : ''}" ${fixed ? '' : 'data-action="buyer" role="button" tabindex="0"'} data-k="${p.id}" aria-pressed="${p.id === b}">
           <button class="addcash" data-action="cash" data-k="${p.id}" aria-label="Geld für ${esc(who(p.id))} hinzufügen">+</button>
           <div class="pair">${avatar(p.id)}<span>${esc(who(p.id))}</span></div>
           <div class="label">Konto${p.id === b ? '<span class="tag">kauft</span>' : ''}</div>
@@ -161,7 +180,7 @@
       ${state.people.length > 2 ? `
       <div class="seg-label">Bei wem kauft ${esc(who(b))}?</div>
       ${pick('seller', state.people.filter((p) => p.id !== b), sl)}` : `
-      <div class="ctx">${esc(who(b))} kauft bei ${esc(who(sl))} · antippen zum Wechseln</div>`}
+      <div class="ctx">${esc(who(b))} kauft bei ${esc(who(sl))}${fixed ? '' : ' · antippen zum Wechseln'}</div>`}
       ${debtsHtml(b)}`;
   }
 
@@ -322,6 +341,17 @@
 
   function renderSettings() {
     $('settings').innerHTML = `
+      ${account() ? `
+      <div class="group-title">Konto</div>
+      <div class="group">
+        <div class="field"><label>Angemeldet</label><div class="acc-as">${esc(account().user)}${myPerson() ? ` · ${esc(who(myPerson()))}` : ''}</div></div>
+        <button class="linkbtn danger" data-action="logout">Abmelden</button>
+      </div>` : ''}
+      <div class="group-title">App</div>
+      <div class="group">
+        <button class="linkbtn" data-action="install">Zum Home-Bildschirm hinzufügen</button>
+        ${installOpen ? `<p class="hint inpad">${esc(installText())}</p>` : ''}
+      </div>
       <div class="group-title">Personen</div>
       <div class="group">
         ${state.people.map((p, i) => `
@@ -332,11 +362,12 @@
         </div>`).join('')}
         <button class="linkbtn" data-action="add-person">+ Person hinzufügen</button>
       </div>
+      ${myPerson() ? '' : `
       <div class="group-title">Ich bin</div>
       <div class="pick in-sheet">${state.people.map((p) => `
         <button class="pchip glass ${p.id === buyer() ? 'on' : ''}" data-action="buyer" data-k="${p.id}">${avatar(p.id, 'sm')}<span>${esc(who(p.id))}</span></button>`).join('')}
-      </div>
-      <p class="hint">Diese Person kauft und zahlt zurück. Beim Löschen einer Person werden auch ihre Einträge entfernt.</p>
+      </div>`}
+      <p class="hint">Beim Löschen einer Person werden auch ihre Einträge entfernt.</p>
       <div class="group-title">Spalten</div>
       ${state.items.map((it) => `
       <div class="group" data-id="${it.id}" style="margin-bottom:10px">
@@ -483,15 +514,16 @@
   const invOwner = () => (person(invPerson) ? invPerson : buyer());
   function renderInventory() {
     const o = invOwner();
-    const many = state.people.length > 2;
+    const many = state.people.length > 2, mp = myPerson();
     const slots = state.items.map((it) => state.people.filter((sl) => sl.id !== o && held(it.id, o, sl.id) > 0).map((sl) => `
         <article class="slot glass" data-id="${it.id}" data-seller="${sl.id}">
           <span class="badge">×${held(it.id, o, sl.id)}</span>
           <span class="big">${esc(it.emoji)}</span>
           <b>${esc(it.name || 'Ohne Namen')}</b>
           ${many ? `<small class="from">von ${esc(who(sl.id))}</small>` : ''}
+          ${!mp || o === mp ? `
           <button class="eat" data-action="inv-eat">Konsumieren</button>
-          <button class="back" data-action="inv-ret">Zurückgeben<small>${debtUnits(it.id, o, sl.id) > 0 ? 'war geliehen · Schuld entfällt' : `+${money(it.price)} von ${esc(who(sl.id))}`}</small></button>
+          <button class="back" data-action="inv-ret">Zurückgeben<small>${debtUnits(it.id, o, sl.id) > 0 ? 'war geliehen · Schuld entfällt' : `+${money(it.price)} von ${esc(who(sl.id))}`}</small></button>` : '<small class="viewonly">Nur ansehen</small>'}
         </article>`).join('')).join('');
     $('inv-body').innerHTML = `
       <div class="seg-label">Wessen Inventar?</div>
@@ -505,6 +537,51 @@
         <p>${esc(who(o))} hat gerade nichts im Inventar.<br>Gekauftes landet automatisch hier.</p>
       </div>`}`;
   }
+
+  /* ---------- Login-Bildschirm ---------- */
+  let loginMode = 'login', loginErr = '', regPerson = null, loginBusy = false;
+  let installEvt = null, installOpen = false;
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; });
+  function installText() {
+    const standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone;
+    if (standalone) return 'Die App läuft schon vom Home-Bildschirm aus.';
+    const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    return ios
+      ? 'Öffne diese Seite in Safari (nicht in der Claude-App: dort oben rechts auf das Teilen- oder Browser-Symbol und „In Safari öffnen“ wählen). In Safari dann: Teilen-Symbol (Viereck mit Pfeil) antippen, nach unten scrollen und „Zum Home-Bildschirm“ wählen.'
+      : 'Öffne das Browser-Menü (⋮) und wähle „App installieren“ oder „Zum Startbildschirm hinzufügen“.';
+  }
+  function renderLogin() {
+    const reg = loginMode === 'register' || !state.accounts.length;
+    const keep = { u: $('login-user') ? $('login-user').value : '', p: $('login-pass') ? $('login-pass').value : '', p2: $('login-pass2') ? $('login-pass2').value : '' };
+    const free = state.people.filter((p) => !state.accounts.some((a) => a.personId === p.id));
+    $('login').innerHTML = `
+      <div class="lock-card glass">
+        <span class="app-icon lock-icon">${EURO_SVG}</span>
+        <h2>${reg ? 'Konto erstellen' : 'Anmelden'}</h2>
+        <input id="login-user" placeholder="Username" maxlength="20" autocomplete="username" autocapitalize="off" autocorrect="off" aria-label="Username">
+        <input id="login-pass" type="password" placeholder="Passwort" autocomplete="${reg ? 'new-password' : 'current-password'}" aria-label="Passwort">
+        ${reg ? `
+        <input id="login-pass2" type="password" placeholder="Passwort wiederholen" autocomplete="new-password" aria-label="Passwort wiederholen">
+        <div class="seg-label">Wer bist du?</div>
+        <div class="pick">${free.map((p) => `
+          <button class="pchip glass ${regPerson === p.id ? 'on' : ''}" data-action="login-person" data-k="${p.id}">${avatar(p.id, 'sm')}<span>${esc(who(p.id))}</span></button>`).join('')}
+          <button class="pchip glass ${regPerson === 'new' ? 'on' : ''}" data-action="login-person" data-k="new"><span class="plus-sm">+</span><span>Neue Person</span></button>
+        </div>` : ''}
+        ${loginErr ? `<p class="hint err">${esc(loginErr)}</p>` : ''}
+        <button class="btn pay" data-action="login-submit">${reg ? 'Konto erstellen' : 'Anmelden'}</button>
+        ${state.accounts.length ? `<button class="linkbtn center" data-action="login-toggle">${reg ? 'Ich habe schon ein Konto' : 'Neues Konto erstellen'}</button>` : ''}
+      </div>`;
+    if (keep.u) $('login-user').value = keep.u;
+    if (keep.p) $('login-pass').value = keep.p;
+    if (keep.p2 && $('login-pass2')) $('login-pass2').value = keep.p2;
+  }
+  function updateLock() {
+    const locked = !account();
+    document.body.classList.toggle('locked', locked);
+    $('login').setAttribute('aria-hidden', String(!locked));
+    if (locked) { setView('home'); renderLogin(); }
+  }
+  $('login').addEventListener('keydown', (e) => { if (e.key === 'Enter') actions['login-submit'](); });
 
   /* ---------- Online-Speicher (geteilt über claude.ai) ---------- */
   let cloudDoc = null, cloudStatus = 'local'; // 'local' | 'on' | 'read' | 'err'
@@ -548,6 +625,7 @@
     persistLocal();
     if (editing && !state.notes.find((n) => n.id === editing)) { editing = null; $('notes').classList.remove('editing'); }
     renderMain(); renderNotes(); renderMac();
+    updateLock();
     if (document.body.classList.contains('sheet-open')) renderSettings();
   }
   (async () => {
@@ -579,7 +657,7 @@
     if (v !== 'manager') closeSheet();
     if (v !== 'notes' && editing) closeNote();
   }
-  function openSheet() { pickerFor = confirmDel = confirmDelPerson = dataOpen = null; loadError = ''; confirmReset = false; renderSettings(); document.body.classList.add('sheet-open'); $('sheet').setAttribute('aria-hidden', 'false'); }
+  function openSheet() { pickerFor = confirmDel = confirmDelPerson = dataOpen = null; loadError = ''; installOpen = false; confirmReset = false; renderSettings(); document.body.classList.add('sheet-open'); $('sheet').setAttribute('aria-hidden', 'false'); }
   function closeSheet() { document.activeElement && document.activeElement.blur(); document.body.classList.remove('sheet-open'); $('sheet').setAttribute('aria-hidden', 'true'); }
 
   function book(itemId, type) {
@@ -598,6 +676,7 @@
   function invUse(el, id, type) {
     const slot = el.closest('.slot'), sl = slot.dataset.seller, o = invOwner(), it = state.items.find((i) => i.id === id);
     if (!it || held(id, o, sl) < 1 || slot.classList.contains('eating')) return;
+    if (myPerson() && o !== myPerson()) return; // fremdes Inventar: nur ansehen
     if (type === 'ret' && debtUnits(id, o, sl) > 0) type = 'retl'; // Geliehenes zurück: kein Geld, Schuld entfällt
     const price = type === 'retl' ? loanAvg(id, o, sl) : acqAvg(id, o, sl);
     slot.classList.add('eating', type);
@@ -623,7 +702,7 @@
     open: () => setView('manager'),
     close: () => setView('home'),
     toggle: (el) => setView(document.body.dataset.view === el.dataset.app ? 'home' : el.dataset.app),
-    buyer: (el) => { const prev = buyer(), sl = seller(); state.buyer = el.dataset.k; state.seller = sl === state.buyer ? prev : sl; invPerson = null; commit(); renderSettings(); },
+    buyer: (el) => { if (myPerson()) return; const prev = buyer(), sl = seller(); state.buyer = el.dataset.k; state.seller = sl === state.buyer ? prev : sl; invPerson = null; commit(); renderSettings(); },
     seller: (el) => { state.seller = el.dataset.k; commit(); },
     'add-person': () => {
       const p = { id: uid(), name: '' };
@@ -695,6 +774,41 @@
       state.tx = state.tx.filter((t) => t.itemId !== id);
       confirmDel = null; commit(); renderSettings();
     },
+    install: () => { if (installEvt) { installEvt.prompt(); return; } installOpen = !installOpen; renderSettings(); },
+    'login-person': (el) => { regPerson = el.dataset.k; renderLogin(); },
+    'login-toggle': () => { loginMode = loginMode === 'register' ? 'login' : 'register'; loginErr = ''; renderLogin(); },
+    'login-submit': async () => {
+      if (loginBusy || !document.body.classList.contains('locked')) return;
+      const fail = (m) => { loginErr = m; renderLogin(); };
+      const u = ($('login-user').value || '').trim(), pw = $('login-pass').value || '';
+      const reg = loginMode === 'register' || !state.accounts.length;
+      if (!u) return fail('Bitte einen Username eingeben.');
+      if (pw.length < 4) return fail('Das Passwort braucht mindestens 4 Zeichen.');
+      loginBusy = true;
+      try {
+        if (reg) {
+          if (($('login-pass2').value || '') !== pw) return fail('Die Passwörter stimmen nicht überein.');
+          if (state.accounts.some((a) => a.user.toLowerCase() === u.toLowerCase())) return fail('Diesen Username gibt es schon.');
+          if (!regPerson) return fail('Wähle unten, wer du bist.');
+          let pid = regPerson;
+          if (pid === 'new') { const p = { id: uid(), name: u }; state.people.push(p); pid = p.id; }
+          else if (!person(pid) || state.accounts.some((a) => a.personId === pid)) return fail('Diese Person ist schon vergeben.');
+          const salt = uid();
+          const a = { id: uid(), user: u, salt, hash: await hashPw(salt, pw), personId: pid };
+          state.accounts.push(a);
+          session = { accountId: a.id, user: a.user };
+        } else {
+          const a = state.accounts.find((x) => x.user.toLowerCase() === u.toLowerCase());
+          if (!a || (await hashPw(a.salt, pw)) !== a.hash) return fail('Username oder Passwort ist falsch.');
+          session = { accountId: a.id, user: a.user };
+        }
+        try { localStorage.setItem(SKEY, JSON.stringify(session)); } catch { /* egal */ }
+        if (myPerson()) state.buyer = myPerson();
+        loginErr = ''; regPerson = null; loginMode = 'login';
+        commit(); updateLock();
+      } finally { loginBusy = false; }
+    },
+    logout: () => { session = null; try { localStorage.removeItem(SKEY); } catch { /* egal */ } closeSheet(); loginErr = ''; renderMain(); updateLock(); },
     'stat-mode': (el) => { state.statMode = el.dataset.k; statOffset = 0; save(); renderStats(); },
     'stat-prev': () => { statOffset--; renderStats(); },
     'stat-next': () => { if (statOffset < 0) { statOffset++; renderStats(); } },
@@ -793,4 +907,5 @@
   renderMain();
   renderNotes();
   renderMac();
+  updateLock();
 })();
