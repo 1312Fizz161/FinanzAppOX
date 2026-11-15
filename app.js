@@ -92,10 +92,22 @@
   /* ---------- Login-Konten ---------- */
   const SKEY = 'finanzappox.session';
   let session = null;
-  try { session = JSON.parse(localStorage.getItem(SKEY) || 'null'); } catch { session = null; }
+  try { session = JSON.parse(sessionStorage.getItem(SKEY) || 'null'); } catch { session = null; }
+  if (!session) { try { session = JSON.parse(localStorage.getItem(SKEY) || 'null'); } catch { session = null; } }
   const account = () => (session && state.accounts.find((a) => a.id === session.accountId)) || null;
   // Die Person des angemeldeten Kontos (null, wenn nicht angemeldet oder Person gelöscht)
   const myPerson = () => { const a = account(); return a && person(a.personId) ? a.personId : null; };
+  // Admin sieht alles; das Passwort steht hier nur als Prüfsumme, nie im Klartext
+  const ADMIN_HASH = '8a57b24a425eba4a232e88212eade47de5ab8e1510dae5e338b6417eb6e6572d';
+  const isAdmin = () => !!(account() && session.admin);
+  // Ohne Admin ist die Sicht auf die eigene Person beschränkt
+  const restrictTo = () => (account() && !session.admin ? myPerson() : null);
+  function saveSession() {
+    try {
+      localStorage.removeItem(SKEY); sessionStorage.removeItem(SKEY);
+      if (session) (session.keep === false ? sessionStorage : localStorage).setItem(SKEY, JSON.stringify(session));
+    } catch { /* egal */ }
+  }
   async function hashPw(salt, pw) {
     const text = salt + ':' + pw;
     if (crypto && crypto.subtle) {
@@ -147,7 +159,7 @@
   function renderHome() {
     $('widget').innerHTML = `
       <div class="w-top"><span class="mini">${EURO_SVG}</span>Finanzen</div>
-      <div class="w-rows">${state.people.map((p) => {
+      <div class="w-rows">${state.people.filter((p) => !restrictTo() || p.id === restrictTo()).map((p) => {
         const bal = balance(p.id);
         return `
         <div class="w-row money">
@@ -164,11 +176,11 @@
         <button class="pchip glass ${p.id === on ? 'on' : ''}" data-action="${action}" data-k="${p.id}">${avatar(p.id, 'sm')}<span>${esc(who(p.id))}</span></button>`).join('')}
       </div>`;
     $('hero').innerHTML = `
-      <div class="accts">${state.people.map((p) => {
+      <div class="accts">${state.people.filter((p) => !restrictTo() || p.id === restrictTo()).map((p) => {
         const bal = balance(p.id);
         return `
         <article class="acct glass ${tone(bal)} ${p.id === b ? 'me' : ''}" ${fixed ? '' : 'data-action="buyer" role="button" tabindex="0"'} data-k="${p.id}" aria-pressed="${p.id === b}">
-          <button class="addcash" data-action="cash" data-k="${p.id}" aria-label="Geld für ${esc(who(p.id))} hinzufügen">+</button>
+${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" data-action="cash" data-k="${p.id}" aria-label="Geld für ${esc(who(p.id))} ändern">+</button>` : ''}
           <div class="pair">${avatar(p.id)}<span>${esc(who(p.id))}</span></div>
           <div class="label">Konto${p.id === b ? '<span class="tag">kauft</span>' : ''}</div>
           <div class="amount">${amount(bal)}</div>
@@ -189,11 +201,14 @@
     if (!person(cashFor)) return '';
     return `
       <div class="cashform glass">
-        <label for="cash-amount">Geld für ${esc(who(cashFor))} hinzufügen</label>
+        <label for="cash-amount">Geld für ${esc(who(cashFor))}</label>
         <div class="cashrow">
           <input id="cash-amount" inputmode="decimal" placeholder="z. B. 100" aria-label="Betrag in Euro">
           <span class="unit">€</span>
-          <button class="paybtn" data-action="cash-add">Hinzufügen</button>
+        </div>
+        <div class="cashbtns">
+          <button class="paybtn" data-action="cash-add">+ Hinzufügen</button>
+          <button class="paybtn out" data-action="cash-sub">− Abziehen</button>
         </div>
       </div>`;
   }
@@ -266,7 +281,7 @@
 
   function renderStats() {
     const m = state.statMode, { start, end, label } = statRange();
-    const rows = state.people.map((p) => {
+    const rows = state.people.filter((p) => !restrictTo() || p.id === restrictTo()).map((p) => {
       let total = 0;
       const counts = {};
       state.tx.forEach((t) => {
@@ -306,15 +321,18 @@
   function renderHistory() {
     const byId = Object.fromEntries(state.items.map((it) => [it.id, it]));
     const fmt = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-    const rows = state.tx.slice().reverse().filter((t) => person(t.from) && (t.type === 'cash' || (byId[t.itemId] && person(t.to)))).slice(0, 60).map((t) => {
+    const rows = state.tx.slice().reverse().filter((t) => person(t.from) && (!restrictTo() || t.from === restrictTo() || t.to === restrictTo()) && (t.type === 'cash' || (byId[t.itemId] && person(t.to)))).slice(0, 60).map((t) => {
       const P = esc(who(t.from)), R = esc(who(t.to)), sum = money(t.qty * t.price);
-      if (t.type === 'cash') return `
+      if (t.type === 'cash') {
+        const out = t.price < 0, amt = money(Math.abs(t.qty * t.price));
+        return `
       <div class="row" data-tx="${t.id}">
         <div class="emoji">💶</div>
-        <div class="txt"><b>${P} zahlt ${sum} ein</b><small>${fmt.format(new Date(t.ts))}</small></div>
-        <div class="val pos">+${sum}</div>
+        <div class="txt"><b>${P} ${out ? `entnimmt ${amt}` : `zahlt ${amt} ein`}</b><small>${fmt.format(new Date(t.ts))}</small></div>
+        <div class="val ${out ? 'neg' : 'pos'}">${out ? '−' : '+'}${amt}</div>
         <button class="x" data-action="undo" aria-label="Eintrag löschen">${X_SVG}</button>
       </div>`;
+      }
       const it = byId[t.itemId];
       const text = t.type === 'buy' ? `${P} kauft ${t.qty}× ${esc(it.name)} bei ${R}`
         : t.type === 'loan' ? `${P} leiht ${t.qty}× ${esc(it.name)} bei ${R}`
@@ -340,6 +358,7 @@
   }
 
   function renderSettings() {
+    const admin = isAdmin();
     $('settings').innerHTML = `
       ${account() ? `
       <div class="group-title">Konto</div>
@@ -352,6 +371,20 @@
         <button class="linkbtn" data-action="install">Zum Home-Bildschirm hinzufügen</button>
         ${installOpen ? `<p class="hint inpad">${esc(installText())}</p>` : ''}
       </div>
+      <div class="group-title">Admin</div>
+      <div class="group">
+        ${admin ? `
+        <div class="field"><label>Status</label><div class="acc-as">Admin-Modus aktiv – du siehst alles</div></div>
+        <button class="linkbtn danger" data-action="admin-exit">Admin verlassen</button>` : `
+        <button class="linkbtn" data-action="admin-open">Admin werden</button>
+        ${adminOpen ? `
+        <div class="codebox">
+          <input id="admin-pass" type="password" placeholder="Admin-Passwort" autocomplete="off" aria-label="Admin-Passwort">
+          ${adminErr ? `<p class="hint err">${esc(adminErr)}</p>` : ''}
+          <button class="btn pay" data-action="admin-submit">Bestätigen</button>
+        </div>` : ''}`}
+      </div>
+      ${admin ? `
       <div class="group-title">Personen</div>
       <div class="group">
         ${state.people.map((p, i) => `
@@ -386,9 +419,10 @@
         <div class="field bulk"><label>Rabatt</label><span class="unit">ab</span><input class="num tiny" data-field="bulkQty" inputmode="numeric" value="${it.bulkQty || ''}" placeholder="–" aria-label="Rabatt ab Stück"><span class="unit">Stück, je</span><input class="num" data-field="bulkPrice" inputmode="decimal" value="${it.bulkPrice != null ? String(it.bulkPrice).replace('.', ',') : ''}" placeholder="–" aria-label="Rabattpreis"><span class="unit">€</span></div>
       </div>`).join('')}
       <div class="group"><button class="linkbtn" data-action="add-item">+ Neue Spalte hinzufügen</button></div>
-      <p class="hint">Jede Spalte hat einen eigenen Namen und Preis. Beim Löschen einer Spalte werden auch ihre Einträge entfernt.</p>
+      <p class="hint">Jede Spalte hat einen eigenen Namen und Preis. Beim Löschen einer Spalte werden auch ihre Einträge entfernt.</p>` : ''}
       <div class="group-title">Daten</div>
       <p class="hint" id="sync-hint" style="margin-bottom:8px">${esc(syncHint())}</p>
+      ${admin ? `
       <div class="group">
         <button class="linkbtn" data-action="data-save">Save · Daten als Code sichern</button>
         ${dataOpen === 'save' ? `
@@ -407,7 +441,7 @@
         </div>` : ''}
         <button class="linkbtn danger" data-action="reset">${confirmReset ? 'Wirklich zurücksetzen? Nochmal tippen' : 'Alles zurücksetzen'}</button>
       </div>
-      <p class="hint">Setzt Konten, Inventar und Verlauf auf null. Personen, Spalten und Notizen bleiben erhalten.</p>`;
+      <p class="hint">Setzt Konten, Inventar und Verlauf auf null. Personen, Spalten und Notizen bleiben erhalten.</p>` : '<p class="hint">Personen, Spalten, Sicherung und Zurücksetzen verwaltet nur der Admin.</p>'}`;
   }
 
   /* ---------- Notes ---------- */
@@ -511,7 +545,7 @@
 
   /* ---------- Inventar ---------- */
   const BAG_SVG = '<svg viewBox="0 0 24 24"><path d="M8.5 7V6a3.5 3.5 0 0 1 7 0v1"/><rect x="5" y="7" width="14" height="14" rx="3.5"/><path d="M9 13h6v3.5H9z"/></svg>';
-  const invOwner = () => (person(invPerson) ? invPerson : buyer());
+  const invOwner = () => restrictTo() || (person(invPerson) ? invPerson : buyer());
   function renderInventory() {
     const o = invOwner();
     const many = state.people.length > 2, mp = myPerson();
@@ -526,10 +560,11 @@
           <button class="back" data-action="inv-ret">Zurückgeben<small>${debtUnits(it.id, o, sl.id) > 0 ? 'war geliehen · Schuld entfällt' : `+${money(it.price)} von ${esc(who(sl.id))}`}</small></button>` : '<small class="viewonly">Nur ansehen</small>'}
         </article>`).join('')).join('');
     $('inv-body').innerHTML = `
+      ${restrictTo() ? '' : `
       <div class="seg-label">Wessen Inventar?</div>
       <div class="pick">${state.people.map((p) => `
         <button class="pchip glass ${p.id === o ? 'on' : ''}" data-action="inv-person" data-k="${p.id}">${avatar(p.id, 'sm')}<span>${esc(who(p.id))}</span></button>`).join('')}
-      </div>
+      </div>`}
       ${slots ? `<div class="inv-grid">${slots}</div>` : `
       <div class="soon">
         <span class="app-icon inv big">${BAG_SVG}</span>
@@ -541,6 +576,7 @@
   /* ---------- Login-Bildschirm ---------- */
   let loginMode = 'login', loginErr = '', regPerson = null, loginBusy = false;
   let installEvt = null, installOpen = false;
+  let adminOpen = false, adminErr = '';
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; });
   function installText() {
     const standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone;
@@ -552,7 +588,7 @@
   }
   function renderLogin() {
     const reg = loginMode === 'register' || !state.accounts.length;
-    const keep = { u: $('login-user') ? $('login-user').value : '', p: $('login-pass') ? $('login-pass').value : '', p2: $('login-pass2') ? $('login-pass2').value : '' };
+    const keep = { u: $('login-user') ? $('login-user').value : '', p: $('login-pass') ? $('login-pass').value : '', p2: $('login-pass2') ? $('login-pass2').value : '', r: $('login-remember') ? $('login-remember').checked : true };
     const free = state.people.filter((p) => !state.accounts.some((a) => a.personId === p.id));
     $('login').innerHTML = `
       <div class="lock-card glass">
@@ -567,6 +603,7 @@
           <button class="pchip glass ${regPerson === p.id ? 'on' : ''}" data-action="login-person" data-k="${p.id}">${avatar(p.id, 'sm')}<span>${esc(who(p.id))}</span></button>`).join('')}
           <button class="pchip glass ${regPerson === 'new' ? 'on' : ''}" data-action="login-person" data-k="new"><span class="plus-sm">+</span><span>Neue Person</span></button>
         </div>` : ''}
+        <label class="remember"><input type="checkbox" id="login-remember" checked> Angemeldet bleiben</label>
         ${loginErr ? `<p class="hint err">${esc(loginErr)}</p>` : ''}
         <button class="btn pay" data-action="login-submit">${reg ? 'Konto erstellen' : 'Anmelden'}</button>
         ${state.accounts.length ? `<button class="linkbtn center" data-action="login-toggle">${reg ? 'Ich habe schon ein Konto' : 'Neues Konto erstellen'}</button>` : ''}
@@ -574,6 +611,7 @@
     if (keep.u) $('login-user').value = keep.u;
     if (keep.p) $('login-pass').value = keep.p;
     if (keep.p2 && $('login-pass2')) $('login-pass2').value = keep.p2;
+    $('login-remember').checked = keep.r;
   }
   function updateLock() {
     const locked = !account();
@@ -657,7 +695,7 @@
     if (v !== 'manager') closeSheet();
     if (v !== 'notes' && editing) closeNote();
   }
-  function openSheet() { pickerFor = confirmDel = confirmDelPerson = dataOpen = null; loadError = ''; installOpen = false; confirmReset = false; renderSettings(); document.body.classList.add('sheet-open'); $('sheet').setAttribute('aria-hidden', 'false'); }
+  function openSheet() { pickerFor = confirmDel = confirmDelPerson = dataOpen = null; loadError = ''; installOpen = false; adminOpen = false; adminErr = ''; confirmReset = false; renderSettings(); document.body.classList.add('sheet-open'); $('sheet').setAttribute('aria-hidden', 'false'); }
   function closeSheet() { document.activeElement && document.activeElement.blur(); document.body.classList.remove('sheet-open'); $('sheet').setAttribute('aria-hidden', 'true'); }
 
   function book(itemId, type) {
@@ -685,6 +723,15 @@
       state.tx.push({ id: uid(), itemId: id, from: o, to: sl, type, qty: 1, price, ts: Date.now() });
       commit();
     }, 260);
+  }
+
+  // Geld auf das eigene Konto einzahlen (+1) oder davon abziehen (−1)
+  function bookCash(sign) {
+    const i = $('cash-amount'), v = parseFloat((i && i.value || '').replace(',', '.'));
+    if (!(v > 0) || !person(cashFor)) { if (i) i.focus(); return; }
+    state.tx.push({ id: uid(), itemId: null, from: cashFor, to: cashFor, type: 'cash', qty: 1, price: sign * round2(v), ts: Date.now() });
+    cashFor = null;
+    commit();
   }
 
   const actions = {
@@ -728,13 +775,8 @@
       const i = $('cash-amount');
       if (i) { i.scrollIntoView({ block: 'center' }); i.focus(); }
     },
-    'cash-add': () => {
-      const i = $('cash-amount'), v = parseFloat((i && i.value || '').replace(',', '.'));
-      if (!(v > 0) || !person(cashFor)) { if (i) i.focus(); return; }
-      state.tx.push({ id: uid(), itemId: null, from: cashFor, to: cashFor, type: 'cash', qty: 1, price: round2(v), ts: Date.now() });
-      cashFor = null;
-      commit();
-    },
+    'cash-add': () => bookCash(1),
+    'cash-sub': () => bookCash(-1),
     buy: (el, id) => book(id, 'buy'),
     loan: (el, id) => book(id, 'loan'),
     'debt-pay': (el) => {
@@ -774,6 +816,26 @@
       state.tx = state.tx.filter((t) => t.itemId !== id);
       confirmDel = null; commit(); renderSettings();
     },
+    'admin-open': () => {
+      adminOpen = !adminOpen; adminErr = '';
+      renderSettings();
+      const i = $('admin-pass');
+      if (i) { i.scrollIntoView({ block: 'center' }); i.focus(); }
+    },
+    'admin-submit': async () => {
+      const i = $('admin-pass');
+      if ((await hashPw('fx1', i ? i.value : '')) !== ADMIN_HASH) {
+        adminErr = 'Falsches Admin-Passwort.';
+        renderSettings();
+        const x = $('admin-pass');
+        if (x) x.focus();
+        return;
+      }
+      session.admin = true; saveSession();
+      adminOpen = false; adminErr = '';
+      renderMain(); renderSettings();
+    },
+    'admin-exit': () => { if (session) { session.admin = false; saveSession(); } renderMain(); renderSettings(); },
     install: () => { if (installEvt) { installEvt.prompt(); return; } installOpen = !installOpen; renderSettings(); },
     'login-person': (el) => { regPerson = el.dataset.k; renderLogin(); },
     'login-toggle': () => { loginMode = loginMode === 'register' ? 'login' : 'register'; loginErr = ''; renderLogin(); },
@@ -796,19 +858,19 @@
           const salt = uid();
           const a = { id: uid(), user: u, salt, hash: await hashPw(salt, pw), personId: pid };
           state.accounts.push(a);
-          session = { accountId: a.id, user: a.user };
+          session = { accountId: a.id, user: a.user, keep: $('login-remember').checked };
         } else {
           const a = state.accounts.find((x) => x.user.toLowerCase() === u.toLowerCase());
           if (!a || (await hashPw(a.salt, pw)) !== a.hash) return fail('Username oder Passwort ist falsch.');
-          session = { accountId: a.id, user: a.user };
+          session = { accountId: a.id, user: a.user, keep: $('login-remember').checked };
         }
-        try { localStorage.setItem(SKEY, JSON.stringify(session)); } catch { /* egal */ }
+        saveSession();
         if (myPerson()) state.buyer = myPerson();
         loginErr = ''; regPerson = null; loginMode = 'login';
         commit(); updateLock();
       } finally { loginBusy = false; }
     },
-    logout: () => { session = null; try { localStorage.removeItem(SKEY); } catch { /* egal */ } closeSheet(); loginErr = ''; renderMain(); updateLock(); },
+    logout: () => { session = null; saveSession(); closeSheet(); loginErr = ''; renderMain(); updateLock(); },
     'stat-mode': (el) => { state.statMode = el.dataset.k; statOffset = 0; save(); renderStats(); },
     'stat-prev': () => { statOffset--; renderStats(); },
     'stat-next': () => { if (statOffset < 0) { statOffset++; renderStats(); } },
@@ -881,7 +943,11 @@
     } else return;
     commit();
   });
-  $('settings').addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') e.target.blur(); });
+  $('settings').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.target.tagName === 'TEXTAREA') return;
+    if (e.target.id === 'admin-pass') { actions['admin-submit'](); return; }
+    e.target.blur();
+  });
   $('settings').addEventListener('focusout', (e) => {
     const f = e.target.dataset.field;
     if (f !== 'price' && f !== 'bulkQty' && f !== 'bulkPrice') return;

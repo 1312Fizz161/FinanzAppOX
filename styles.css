@@ -440,3 +440,12 @@ body.locked .dock { display: none; }
 .acc-as { flex: 1; padding: 12px 0; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hint.inpad { padding: 0 14px 12px; margin: 0; }
 .slot .viewonly { margin-top: 10px; color: var(--faint); font-size: 13px; }
+
+/* ---------- Admin, Merken, Geld abziehen ---------- */
+.accts > :only-child { grid-column: 1 / -1; }
+.cashbtns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.paybtn.out { background: linear-gradient(150deg, #ffb3a7, #e2504f); color: #3a0a0a; box-shadow: 0 8px 18px -10px rgba(226, 80, 79, .9); }
+.remember { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; color: var(--muted); font-size: 15px; user-select: none; -webkit-user-select: none; }
+.remember input { width: 18px; height: 18px; accent-color: #17b877; }
+.codebox input { width: 100%; background: rgba(0, 0, 0, .25); border: 1px solid var(--stroke); border-radius: 12px; padding: 11px 12px; font-size: 16px; color: var(--text); outline: 0; user-select: text; -webkit-user-select: text; }
+.codebox input:focus { border-color: rgba(255, 255, 255, .45); }
