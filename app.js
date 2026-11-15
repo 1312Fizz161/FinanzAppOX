@@ -12,10 +12,13 @@
     people: [{ id: 'me', name: 'Matti' }, { id: 'partner', name: 'Juna' }],
     buyer: 'me',      // wer gerade kauft
     seller: 'partner', // bei wem gekauft wird
-    items: [{ id: uid(), name: 'Geschenk', price: 15, emoji: '🎁' }],
+    items: [
+      { id: uid(), name: 'Geschenk', price: 15, bulkQty: 10, bulkPrice: 12, emoji: '🎁' },
+      { id: uid(), name: 'Geschenke 2', price: 3, bulkQty: 10, bulkPrice: 2, emoji: '💝' }
+    ],
     notes: [],
     statMode: 'week', // Statistik: 'day' | 'week' | 'month'
-    v: 3,
+    v: 4,
     tx: [] // { id, itemId, from (wer handelt), to (bei wem), type: 'cash' (Geld einzahlen) | 'buy' | 'loan' (leihen) | 'settle' (geliehenes zahlen) | 'eat' | 'ret' (bezahltes zurück) | 'retl' (geliehenes zurück), qty, price, ts }
   });
 
@@ -28,7 +31,13 @@
     state.buyer = state.payer === 'partner' ? 'partner' : 'me';
     delete state.me; delete state.partner; delete state.payer;
   }
-  if (state.v !== 3) { state.tx = []; state.v = 3; } // Buchungen aus früheren Rechenmodellen verwerfen
+  if (state.v !== 3 && state.v !== 4) state.tx = []; // Buchungen aus früheren Rechenmodellen verwerfen
+  if (state.v !== 4) { // Version 4: Mengenrabatt und Geschenke 2
+    const g = (state.items || []).find((i) => i.name === 'Geschenk');
+    if (g && g.bulkQty == null) { g.bulkQty = 10; g.bulkPrice = 12; }
+    if (!(state.items || []).some((i) => i.name === 'Geschenke 2')) state.items.push({ id: uid(), name: 'Geschenke 2', price: 3, bulkQty: 10, bulkPrice: 2, emoji: '💝' });
+    state.v = 4;
+  }
   state.tx.forEach((t) => { if (!t.to) t.to = t.from === 'me' ? 'partner' : 'me'; });
   if (!['day', 'week', 'month'].includes(state.statMode)) state.statMode = 'week';
   if (!state.mac) state.mac = { stamps: 0, loanUntil: null }; // MacPunkte: Stempel und Ende der Ausleihe
@@ -72,14 +81,29 @@
   const sumTx = (itemId, from, type, to) => state.tx.reduce((sum, t) => sum + (t.itemId === itemId && t.from === from && t.type === type && (!to || t.to === to) ? t.qty : 0), 0);
   // Stücke im Inventar einer Person: gekauft, weder konsumiert noch zurückgegeben (optional nur von einem Verkäufer)
   const held = (itemId, key, from) => sumTx(itemId, key, 'buy', from) + sumTx(itemId, key, 'loan', from) - sumTx(itemId, key, 'eat', from) - sumTx(itemId, key, 'ret', from) - sumTx(itemId, key, 'retl', from);
-  // Stücke, für die a an b bezahlt hat (Käufe plus später Gezahltes minus Rückgaben)
-  const paidUnits = (itemId, a, b) => sumTx(itemId, a, 'buy', b) + sumTx(itemId, a, 'settle', b) - sumTx(itemId, a, 'ret', b);
+  // Geldsumme der Buchungen eines Typs von a bei b
+  const moneyTx = (itemId, a, type, b) => state.tx.reduce((sum, t) => sum + (t.itemId === itemId && t.from === a && t.type === type && t.to === b ? t.qty * t.price : 0), 0);
   // Geliehene, noch nicht bezahlte (und nicht zurückgegebene) Stücke von a bei b
   const debtUnits = (itemId, a, b) => sumTx(itemId, a, 'loan', b) - sumTx(itemId, a, 'settle', b) - sumTx(itemId, a, 'retl', b);
-  // Eingezahltes Geld einer Person
-  const cashOf = (key) => state.tx.reduce((sum, t) => sum + (t.type === 'cash' && t.from === key ? t.qty * t.price : 0), 0);
-  // Kontostand: Einzahlungen, plus Verkäufe, minus Käufe. Zurückgeben dreht den Kauf um. Konsumieren ändert nichts.
-  const balance = (key) => round2(cashOf(key) + state.items.reduce((sum, it) => sum + it.price * state.people.reduce((n, p) => n + (p.id === key ? 0 : paidUnits(it.id, p.id, key) - paidUnits(it.id, key, p.id)), 0), 0));
+  // Stückpreis beim Kauf von q auf einmal (Mengenrabatt ab bulkQty Stück)
+  const unitPrice = (it, q) => (it.bulkQty >= 2 && it.bulkPrice != null && q >= it.bulkQty ? it.bulkPrice : it.price);
+  // Durchschnittspreis, zu dem o das Stück bei sl bekommen hat (für Konsum und Rückgabe)
+  const acqAvg = (itemId, o, sl) => {
+    const u = sumTx(itemId, o, 'buy', sl) + sumTx(itemId, o, 'loan', sl);
+    if (!u) { const it = state.items.find((i) => i.id === itemId); return it ? it.price : 0; }
+    return round2((moneyTx(itemId, o, 'buy', sl) + moneyTx(itemId, o, 'loan', sl)) / u);
+  };
+  // Offener geliehener Betrag und Preis je noch offenem Stück
+  const debtMoney = (itemId, a, b) => round2(moneyTx(itemId, a, 'loan', b) - moneyTx(itemId, a, 'settle', b) - moneyTx(itemId, a, 'retl', b));
+  const loanAvg = (itemId, a, b) => { const u = debtUnits(itemId, a, b); return u > 0 ? round2(debtMoney(itemId, a, b) / u) : acqAvg(itemId, a, b); };
+  // Kontostand aus den Buchungen: Einzahlungen plus Verkäufe minus Käufe; Rückgaben drehen den Kauf um.
+  const balance = (key) => round2(state.tx.reduce((sum, t) => {
+    const v = t.qty * t.price;
+    if (t.type === 'cash') return sum + (t.from === key ? v : 0);
+    if (t.type === 'buy' || t.type === 'settle') return sum + (t.to === key ? v : 0) - (t.from === key ? v : 0);
+    if (t.type === 'ret') return sum + (t.from === key ? v : 0) - (t.to === key ? v : 0);
+    return sum;
+  }, 0));
   const amount = (b) => (b > 0 ? '+' : '') + money(b);
   const tone = (b) => (b > 0 ? 'pos' : b < 0 ? 'neg' : 'zero');
 
@@ -156,9 +180,9 @@
           <div class="emoji">${esc(d.it.emoji)}</div>
           <div class="txt">
             <b>${d.n}× ${esc(d.it.name)}</b>
-            <small>${esc(who(b))} schuldet ${esc(who(d.p2.id))} ${money(d.n * d.it.price)}</small>
+            <small>${esc(who(b))} schuldet ${esc(who(d.p2.id))} ${money(debtMoney(d.it.id, b, d.p2.id))}</small>
           </div>
-          <button class="paybtn" data-action="debt-pay">${money(d.it.price)}<small>zahlen</small></button>
+          <button class="paybtn" data-action="debt-pay">${money(loanAvg(d.it.id, b, d.p2.id))}<small>zahlen</small></button>
         </div>`).join('')}
       </div>`;
   }
@@ -167,6 +191,7 @@
     const p = buyer(), sl = seller(), receiver = esc(who(sl));
     $('items').innerHTML = state.items.map((it) => {
       const c = held(it.id, p), q = qty[it.id] || 1;
+      const unit = unitPrice(it, q), total = round2(unit * q), rabatt = it.bulkQty >= 2 && it.bulkPrice != null;
       return `
       <article class="card glass" data-id="${it.id}">
         <div class="card-top">
@@ -174,13 +199,13 @@
           <div class="count ${c > 0 ? 'pos' : ''}"><b>${c}</b><small>${esc(who(p))} hat</small></div>
         </div>
         <h3>${esc(it.name || 'Ohne Namen')}</h3>
-        <div class="price">${money(it.price)} pro Stück</div>
+        <div class="price">${money(it.price)} pro Stück${rabatt ? ` · ab ${it.bulkQty}: ${money(it.bulkPrice)}` : ''}</div>
         <div class="stepper">
           <button data-action="qty" data-d="-1" aria-label="Weniger">−</button>
           <span>${q}×</span>
           <button data-action="qty" data-d="1" aria-label="Mehr">+</button>
         </div>
-        <button class="btn pay" data-action="buy">Kaufen<small>${money(it.price * q)} an ${receiver}</small></button>
+        <button class="btn pay" data-action="buy">Kaufen<small>${money(total)} an ${receiver}${unit < it.price ? ` · je ${money(unit)}` : ''}</small></button>
         <button class="btn loan" data-action="loan">Leihen</button>
       </article>`;
     }).join('') || '<div class="empty wide">Noch keine Spalte. Lege im Zahnrad eine an.</div>';
@@ -315,6 +340,7 @@
           <div class="picker-grid">${GROUPS[pickerGroup].list.map((e) => `<button data-action="emoji" data-e="${e}" class="${e === it.emoji ? 'on' : ''}">${e}</button>`).join('')}</div>
         </div>` : ''}
         <div class="field"><label>Preis</label><input class="num" data-field="price" inputmode="decimal" value="${String(it.price).replace('.', ',')}"><span class="unit">€</span></div>
+        <div class="field bulk"><label>Rabatt</label><span class="unit">ab</span><input class="num tiny" data-field="bulkQty" inputmode="numeric" value="${it.bulkQty || ''}" placeholder="–" aria-label="Rabatt ab Stück"><span class="unit">Stück, je</span><input class="num" data-field="bulkPrice" inputmode="decimal" value="${it.bulkPrice != null ? String(it.bulkPrice).replace('.', ',') : ''}" placeholder="–" aria-label="Rabattpreis"><span class="unit">€</span></div>
       </div>`).join('')}
       <div class="group"><button class="linkbtn" data-action="add-item">+ Neue Spalte hinzufügen</button></div>
       <p class="hint">Jede Spalte hat einen eigenen Namen und Preis. Beim Löschen einer Spalte werden auch ihre Einträge entfernt.</p>
@@ -484,7 +510,7 @@
     const it = state.items.find((i) => i.id === itemId);
     if (!it) return;
     const q = qty[itemId] || 1;
-    state.tx.push({ id: uid(), itemId, from: buyer(), to: seller(), type, qty: q, price: it.price, ts: Date.now() });
+    state.tx.push({ id: uid(), itemId, from: buyer(), to: seller(), type, qty: q, price: unitPrice(it, q), ts: Date.now() });
     qty[itemId] = 1;
     commit();
     const card = document.querySelector(`.card[data-id="${itemId}"]`);
@@ -497,10 +523,11 @@
     const slot = el.closest('.slot'), sl = slot.dataset.seller, o = invOwner(), it = state.items.find((i) => i.id === id);
     if (!it || held(id, o, sl) < 1 || slot.classList.contains('eating')) return;
     if (type === 'ret' && debtUnits(id, o, sl) > 0) type = 'retl'; // Geliehenes zurück: kein Geld, Schuld entfällt
+    const price = type === 'retl' ? loanAvg(id, o, sl) : acqAvg(id, o, sl);
     slot.classList.add('eating', type);
     if (navigator.vibrate) navigator.vibrate(10);
     setTimeout(() => {
-      state.tx.push({ id: uid(), itemId: id, from: o, to: sl, type, qty: 1, price: it.price, ts: Date.now() });
+      state.tx.push({ id: uid(), itemId: id, from: o, to: sl, type, qty: 1, price, ts: Date.now() });
       commit();
     }, 260);
   }
@@ -559,7 +586,7 @@
       const [itemId, slId] = el.closest('[data-debt]').dataset.debt.split('|');
       const it = state.items.find((i) => i.id === itemId), b = buyer();
       if (!it || debtUnits(itemId, b, slId) < 1) return;
-      state.tx.push({ id: uid(), itemId, from: b, to: slId, type: 'settle', qty: 1, price: it.price, ts: Date.now() });
+      state.tx.push({ id: uid(), itemId, from: b, to: slId, type: 'settle', qty: 1, price: loanAvg(itemId, b, slId), ts: Date.now() });
       if (navigator.vibrate) navigator.vibrate(10);
       commit();
     },
@@ -652,20 +679,27 @@
     }
     else if (el.dataset.field) {
       const it = state.items.find((i) => i.id === el.closest('[data-id]').dataset.id);
-      if (el.dataset.field === 'name') it.name = el.value;
+      const f = el.dataset.field;
+      if (f === 'name') it.name = el.value;
+      else if (f === 'bulkQty') { const n = parseInt(el.value, 10); it.bulkQty = n >= 2 ? n : null; }
+      else if (f === 'bulkPrice') { const p = parseFloat(el.value.replace(',', '.')); it.bulkPrice = p >= 0 ? round2(p) : null; }
       else {
         const p = parseFloat(el.value.replace(',', '.'));
         if (!(p >= 0)) return;
-        it.price = Math.round(p * 100) / 100;
+        it.price = round2(p);
       }
     } else return;
     commit();
   });
   $('settings').addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') e.target.blur(); });
   $('settings').addEventListener('focusout', (e) => {
-    if (e.target.dataset.field !== 'price') return;
+    const f = e.target.dataset.field;
+    if (f !== 'price' && f !== 'bulkQty' && f !== 'bulkPrice') return;
     const it = state.items.find((i) => i.id === e.target.closest('[data-id]').dataset.id);
-    if (it) e.target.value = String(it.price).replace('.', ',');
+    if (!it) return;
+    if (f === 'price') e.target.value = String(it.price).replace('.', ',');
+    else if (f === 'bulkQty') e.target.value = it.bulkQty || '';
+    else e.target.value = it.bulkPrice != null ? String(it.bulkPrice).replace('.', ',') : '';
   });
   $('hero').addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'cash-amount') actions['cash-add'](); });
   $('items').addEventListener('animationend', (e) => e.target.classList.remove('bump'));
