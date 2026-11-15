@@ -22,27 +22,39 @@
     tx: [] // { id, itemId, from (wer handelt), to (bei wem), type: 'cash' (Geld einzahlen) | 'buy' | 'loan' (leihen) | 'settle' (geliehenes zahlen) | 'eat' | 'ret' (bezahltes zurück) | 'retl' (geliehenes zurück), qty, price, ts }
   });
 
+  // Einen (auch älteren) Stand in die aktuelle Form bringen
+  function normalize(st) {
+    if (!st || typeof st !== 'object' || Array.isArray(st)) st = defaults();
+    if (!Array.isArray(st.items)) st.items = [];
+    st.tx = (Array.isArray(st.tx) ? st.tx : []).filter((t) => t && t.type); // alte Buchungen ohne Art verwerfen
+    // Ältere Stände mit genau zwei festen Personen übernehmen
+    if (!Array.isArray(st.people) || st.people.length < 2) {
+      st.people = [{ id: 'me', name: st.me || 'Matti' }, { id: 'partner', name: st.partner || 'Juna' }];
+      st.buyer = st.payer === 'partner' ? 'partner' : 'me';
+      delete st.me; delete st.partner; delete st.payer;
+    }
+    if (st.v !== 3 && st.v !== 4) st.tx = []; // Buchungen aus früheren Rechenmodellen verwerfen
+    if (st.v !== 4) { // Version 4: Mengenrabatt und Geschenke 2
+      const g = st.items.find((i) => i.name === 'Geschenk');
+      if (g && g.bulkQty == null) { g.bulkQty = 10; g.bulkPrice = 12; }
+      if (!st.items.some((i) => i.name === 'Geschenke 2')) st.items.push({ id: uid(), name: 'Geschenke 2', price: 3, bulkQty: 10, bulkPrice: 2, emoji: '💝' });
+      st.v = 4;
+    }
+    st.tx.forEach((t) => { if (!t.to) t.to = t.from === 'me' ? 'partner' : 'me'; });
+    if (!['day', 'week', 'month'].includes(st.statMode)) st.statMode = 'week';
+    if (!st.mac) st.mac = { stamps: 0, loanUntil: null }; // MacPunkte: Stempel und Ende der Ausleihe
+    if (!Array.isArray(st.notes)) st.notes = []; // { id, text, ts }
+    if (typeof st.ts !== 'number') st.ts = 0; // Zeit der letzten Änderung (für den Online-Abgleich)
+    return st;
+  }
+
   let state;
   try { state = JSON.parse(localStorage.getItem(KEY)) || defaults(); } catch { state = defaults(); }
-  state.tx = (state.tx || []).filter((t) => t.type); // alte Buchungen ohne Art verwerfen
-  // Ältere Stände mit genau zwei festen Personen übernehmen
-  if (!Array.isArray(state.people) || state.people.length < 2) {
-    state.people = [{ id: 'me', name: state.me || 'Matti' }, { id: 'partner', name: state.partner || 'Juna' }];
-    state.buyer = state.payer === 'partner' ? 'partner' : 'me';
-    delete state.me; delete state.partner; delete state.payer;
-  }
-  if (state.v !== 3 && state.v !== 4) state.tx = []; // Buchungen aus früheren Rechenmodellen verwerfen
-  if (state.v !== 4) { // Version 4: Mengenrabatt und Geschenke 2
-    const g = (state.items || []).find((i) => i.name === 'Geschenk');
-    if (g && g.bulkQty == null) { g.bulkQty = 10; g.bulkPrice = 12; }
-    if (!(state.items || []).some((i) => i.name === 'Geschenke 2')) state.items.push({ id: uid(), name: 'Geschenke 2', price: 3, bulkQty: 10, bulkPrice: 2, emoji: '💝' });
-    state.v = 4;
-  }
-  state.tx.forEach((t) => { if (!t.to) t.to = t.from === 'me' ? 'partner' : 'me'; });
-  if (!['day', 'week', 'month'].includes(state.statMode)) state.statMode = 'week';
-  if (!state.mac) state.mac = { stamps: 0, loanUntil: null }; // MacPunkte: Stempel und Ende der Ausleihe
-  if (!Array.isArray(state.notes)) state.notes = []; // { id, text, ts }
-  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* privat/voll */ } };
+  state = normalize(state);
+
+  const CLIENT = uid(); // kennzeichnet dieses Gerät/Fenster in Online-Schreibvorgängen
+  const persistLocal = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* privat/voll */ } };
+  const save = () => { state.ts = Date.now(); state.by = CLIENT; persistLocal(); cloudPush(); };
 
   // UI-Zustand (nicht gespeichert)
   const qty = {};          // Menge je Spalte
@@ -345,6 +357,7 @@
       <div class="group"><button class="linkbtn" data-action="add-item">+ Neue Spalte hinzufügen</button></div>
       <p class="hint">Jede Spalte hat einen eigenen Namen und Preis. Beim Löschen einer Spalte werden auch ihre Einträge entfernt.</p>
       <div class="group-title">Daten</div>
+      <p class="hint" id="sync-hint" style="margin-bottom:8px">${esc(syncHint())}</p>
       <div class="group">
         <button class="linkbtn" data-action="data-save">Save · Daten als Code sichern</button>
         ${dataOpen === 'save' ? `
@@ -492,6 +505,69 @@
         <p>${esc(who(o))} hat gerade nichts im Inventar.<br>Gekauftes landet automatisch hier.</p>
       </div>`}`;
   }
+
+  /* ---------- Online-Speicher (geteilt über claude.ai) ---------- */
+  let cloudDoc = null, cloudStatus = 'local'; // 'local' | 'on' | 'read' | 'err'
+  let pushTimer = null, pushing = false, pushAgain = false;
+  function syncHint() {
+    return cloudStatus === 'on' ? 'Online-Speicher aktiv: Jede Änderung landet auf dem Server und gilt für alle, die diese Seite nutzen – auf jedem Gerät.'
+      : cloudStatus === 'read' ? 'Du siehst den Online-Stand, darfst ihn aber nicht ändern (nur Lesezugriff). Eigene Änderungen bleiben nur auf diesem Gerät.'
+      : cloudStatus === 'err' ? 'Online-Speicher gerade nicht erreichbar – Änderungen werden auf diesem Gerät gespeichert.'
+      : 'Daten werden auf diesem Gerät gespeichert. Auf claude.ai angemeldet, teilt der Online-Speicher sie automatisch mit allen Geräten.';
+  }
+  function setCloudStatus(st) {
+    if (cloudStatus === st) return;
+    cloudStatus = st;
+    const el = $('sync-hint');
+    if (el) el.textContent = syncHint();
+  }
+  function cloudPush() {
+    if (!cloudDoc || cloudStatus === 'read') return;
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(doPush, 500);
+  }
+  function doPush() {
+    if (!cloudDoc) return;
+    if (pushing) { pushAgain = true; return; } // immer nur ein Schreibvorgang
+    pushing = true;
+    const body = JSON.parse(JSON.stringify(state));
+    cloudDoc.set(body).then(
+      () => { setCloudStatus('on'); },
+      (e) => {
+        if (e && e.code === 'invalid_argument') setCloudStatus('read'); // keine Schreibrechte
+        else if (e && e.code === 'unavailable') { pushAgain = true; }
+        else setCloudStatus('err');
+      }
+    ).finally(() => {
+      pushing = false;
+      if (pushAgain && cloudStatus !== 'read') { pushAgain = false; cloudPush(); }
+    });
+  }
+  function adoptRemote(d) {
+    state = normalize(JSON.parse(JSON.stringify(d)));
+    persistLocal();
+    if (editing && !state.notes.find((n) => n.id === editing)) { editing = null; $('notes').classList.remove('editing'); }
+    renderMain(); renderNotes(); renderMac();
+    if (document.body.classList.contains('sheet-open')) renderSettings();
+  }
+  (async () => {
+    if (!(window.claude && window.claude.use)) return;
+    let db = null;
+    try { db = await window.claude.use('db'); } catch { /* wie nicht verfügbar */ }
+    if (!db) return; // abgemeldet oder nicht verfügbar: lokal weiterarbeiten
+    cloudDoc = db.doc('app/state');
+    cloudDoc.onSnapshot((snap) => {
+      if (!snap.exists) { // noch nichts im Online-Speicher: eigenen Stand hochladen
+        if (!snap.metadata.fromCache) { setCloudStatus('on'); cloudPush(); }
+        return;
+      }
+      const d = snap.data();
+      setCloudStatus(cloudStatus === 'read' ? 'read' : 'on');
+      if (d.by === CLIENT && d.ts === state.ts) return; // Echo des eigenen Schreibens
+      if ((d.ts || 0) > (state.ts || 0)) adoptRemote(d);
+      else if ((d.ts || 0) < (state.ts || 0) && !snap.metadata.fromCache) cloudPush(); // lokal ist neuer
+    }, () => setCloudStatus('err'));
+  })();
 
   function renderMain() { renderHome(); renderAccounts(); renderItems(); renderStats(); renderHistory(); renderInventory(); }
   function commit() { save(); renderMain(); }
