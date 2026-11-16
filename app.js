@@ -570,7 +570,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     if (!t || t.st !== 'pending' || t.to !== JUNA) return;
     if (st === 'denied' && held(t.itemId, t.from, t.to) < t.qty) {
       reqMsg = `${who(t.from)} hat es schon konsumiert. Verwehren geht nicht mehr.`;
-      renderRequests();
+      renderMain();
       return;
     }
     reqMsg = '';
@@ -578,10 +578,33 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     if (navigator.vibrate) navigator.vibrate(10);
     commit();
   }
+  // Startbildschirm: für Juna die offenen Anfragen direkt mit Erhalten/Verwehren
+  function renderHomeReq() {
+    const el = $('home-req');
+    if (!el) return;
+    const byId = Object.fromEntries(state.items.map((it) => [it.id, it]));
+    const open = requestsMode() ? state.tx.filter((t) => t.st === 'pending' && t.to === JUNA && byId[t.itemId] && person(t.from)).slice().reverse() : [];
+    if (!open.length && !reqMsg) { el.innerHTML = ''; return; }
+    el.innerHTML = `
+      <div class="home-req glass">
+        <div class="hr-title">Anfragen <span>${open.length}</span></div>
+        ${reqMsg ? `<p class="hr-msg">${esc(reqMsg)}</p>` : ''}
+        ${open.map((t) => `
+        <div class="hr-row" data-tx="${t.id}">
+          <div class="hr-txt"><b>${esc(who(t.from))} kauft ${t.qty}× ${esc(byId[t.itemId].name)}</b><small>${money(t.qty * t.price)}</small></div>
+          <button class="hr-btn ok" data-action="req-ok">Erhalten</button>
+          <button class="hr-btn no" data-action="req-no">Verwehren</button>
+        </div>`).join('')}
+      </div>`;
+  }
   // Leiste: für Juna ein Posteingang-Symbol mit Anzahl offener Anfragen
   function renderDock() {
     const j = requestsMode(), icon = document.querySelector('[data-app="mac"] .app-icon');
     if (icon) icon.innerHTML = j ? INBOX_SVG : MAC_SVG;
+    // MacPunkte gibt es nur noch für Juna (dort als Anfragen); bei allen anderen ist es ausgeblendet
+    const macBtn = document.querySelector('[data-app="mac"]');
+    if (macBtn) macBtn.hidden = !j;
+    if (!j && document.body.dataset.view === 'mac') setView('home');
     const n = j ? state.tx.filter((t) => t.st === 'pending' && t.to === JUNA).length : 0;
     const b = $('req-badge');
     if (b) { b.textContent = n || ''; b.classList.toggle('on', n > 0); }
@@ -796,7 +819,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     }, () => setCloudStatus('err'));
   })();
 
-  function renderMain() { renderHome(); renderAccounts(); renderItems(); renderStats(); renderHistory(); renderInventory(); renderMac(); renderDock(); }
+  function renderMain() { renderHome(); renderAccounts(); renderItems(); renderStats(); renderHistory(); renderInventory(); renderMac(); renderDock(); renderHomeReq(); }
   function commit() { save(); renderMain(); }
 
   /* ---------- Aktionen ---------- */

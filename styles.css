@@ -468,3 +468,21 @@ body.locked .dock { display: none; }
 
 /* Abstand Label/Wert im Konto-Bereich */
 .acc-as { padding-left: 14px; }
+
+/* ---------- Anfragen auf dem Startbildschirm ---------- */
+#home-req { width: 100%; max-width: 380px; margin-top: 16px; }
+.home-req { border-radius: 26px; padding: 14px 16px 6px; }
+.hr-title { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.hr-title span { background: #ff5b5b; color: #fff; border-radius: 10px; padding: 1px 8px; font-size: 12px; letter-spacing: 0; }
+.hr-row { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-top: 1px solid rgba(255, 255, 255, .08); }
+.hr-txt { flex: 1; min-width: 0; }
+.hr-txt b { display: block; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.hr-txt small { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.hr-btn { flex: none; padding: 8px 10px; border-radius: 12px; font-size: 13px; font-weight: 700; transition: transform .18s var(--ease); }
+.hr-btn:active { transform: scale(.94); }
+.hr-btn.ok { background: linear-gradient(150deg, #4be39a, #10a56c); color: #04251a; }
+.hr-btn.no { background: rgba(255, 255, 255, .12); border: 1px solid var(--stroke); color: var(--text); }
+.hr-msg { margin: 6px 0 2px; font-size: 13px; color: var(--red); }
+
+/* MacPunkte nur für Juna sichtbar (als Anfragen) */
+.app[hidden] { display: none; }
