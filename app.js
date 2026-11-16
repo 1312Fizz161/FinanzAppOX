@@ -44,7 +44,8 @@
     if (!['day', 'week', 'month'].includes(st.statMode)) st.statMode = 'week';
     if (!st.mac) st.mac = { stamps: 0, loanUntil: null }; // MacPunkte: Stempel und Ende der Ausleihe
     if (!Array.isArray(st.notes)) st.notes = []; // { id, text, ts }
-    if (!Array.isArray(st.accounts)) st.accounts = []; // { id, user, salt, hash, personId }
+    if (!Array.isArray(st.accounts)) st.accounts = []; // { id, user, salt, hash, personId, names }
+    st.accounts.forEach((a) => { if (!a.names || typeof a.names !== 'object') a.names = {}; }); // eigene Artikelnamen je Konto
     if (typeof st.ts !== 'number') st.ts = 0; // Zeit der letzten Änderung (für den Online-Abgleich)
     return st;
   }
@@ -99,6 +100,8 @@
   const account = () => (session && state.accounts.find((a) => a.id === session.accountId)) || null;
   // Die Person des angemeldeten Kontos (null, wenn nicht angemeldet oder Person gelöscht)
   const myPerson = () => { const a = account(); return a && person(a.personId) ? a.personId : null; };
+  // Artikelname für den angemeldeten Account: eigener Name, sonst der Standardname
+  const itemName = (it) => { const a = account(); const n = a && a.names && a.names[it.id]; return (n && n.trim()) || it.name; };
   // Admin sieht alles; das Passwort steht hier nur als Prüfsumme, nie im Klartext
   const ADMIN_HASH = '8a57b24a425eba4a232e88212eade47de5ab8e1510dae5e338b6417eb6e6572d';
   const isAdmin = () => !!(account() && session.admin);
@@ -238,7 +241,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
         <div class="debt glass" data-debt="${d.it.id}|${d.p2.id}">
           <div class="emoji">${esc(d.it.emoji)}</div>
           <div class="txt">
-            <b>${d.n}× ${esc(d.it.name)}</b>
+            <b>${d.n}× ${esc(itemName(d.it))}</b>
             <small>${esc(who(b))} schuldet ${esc(who(d.p2.id))} ${money(debtMoney(d.it.id, b, d.p2.id))}</small>
           </div>
           <button class="paybtn" data-action="debt-pay">${money(loanAvg(d.it.id, b, d.p2.id))}<small>zahlen</small></button>
@@ -257,7 +260,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
           <div class="emoji">${esc(it.emoji)}</div>
           <div class="count ${c > 0 ? 'pos' : ''}"><b>${c}</b><small>${esc(who(p))} hat</small></div>
         </div>
-        <h3>${esc(it.name || 'Ohne Namen')}</h3>
+        <h3>${esc(itemName(it) || 'Ohne Namen')}</h3>
         <div class="price">${money(it.price)} pro Stück${rabatt ? ` · ab ${it.bulkQty}: ${money(it.bulkPrice)}` : ''}</div>
         <div class="stepper">
           <button data-action="qty" data-d="-1" aria-label="Weniger">−</button>
@@ -348,12 +351,12 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
       }
       const it = byId[t.itemId];
       const pend = t.st === 'pending', denied = t.st === 'denied';
-      const text = t.type === 'buy' ? `${P} kauft ${t.qty}× ${esc(it.name)} bei ${R}${pend ? ' · Juna bestätigt noch' : denied ? ' · von Juna verwehrt' : ''}`
-        : t.type === 'loan' ? `${P} leiht ${t.qty}× ${esc(it.name)} bei ${R}`
+      const text = t.type === 'buy' ? `${P} kauft ${t.qty}× ${esc(itemName(it))} bei ${R}${pend ? ' · Juna bestätigt noch' : denied ? ' · von Juna verwehrt' : ''}`
+        : t.type === 'loan' ? `${P} leiht ${t.qty}× ${esc(itemName(it))} bei ${R}`
         : t.type === 'settle' ? `${P} zahlt ${R} ${sum} für Geliehenes`
-        : t.type === 'eat' ? `${P} konsumiert ${t.qty}× ${esc(it.name)}`
-        : t.type === 'retl' ? `${P} gibt ${R} ${t.qty}× ${esc(it.name)} zurück (war geliehen)`
-        : `${P} gibt ${R} ${t.qty}× ${esc(it.name)} zurück`;
+        : t.type === 'eat' ? `${P} konsumiert ${t.qty}× ${esc(itemName(it))}`
+        : t.type === 'retl' ? `${P} gibt ${R} ${t.qty}× ${esc(itemName(it))} zurück (war geliehen)`
+        : `${P} gibt ${R} ${t.qty}× ${esc(itemName(it))} zurück`;
       const val = denied ? '<div class="val dim">storniert</div>' : t.type === 'ret' ? `<div class="val pos">+${sum}</div>`
         : t.type === 'buy' || t.type === 'settle' ? `<div class="val neg">−${sum}</div>`
         : t.type === 'loan' ? `<div class="val dim">${sum} offen</div>` : '';
@@ -390,6 +393,16 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
         ${pwOk ? `<p class="hint inpad">${esc(pwOk)}</p>` : ''}
         <button class="linkbtn danger" data-action="logout">Abmelden</button>
       </div>` : ''}
+      ${account() ? `
+      <div class="group-title">Meine Artikelnamen</div>
+      <div class="group">
+        ${state.items.map((it) => `
+        <div class="field">
+          <div class="emoji">${esc(it.emoji)}</div>
+          <input data-myname="${it.id}" value="${esc(itemName(it))}" placeholder="${esc(it.name)}" maxlength="24" aria-label="Eigener Name für ${esc(it.name)}">
+        </div>`).join('')}
+      </div>
+      <p class="hint">Nur du siehst diese Namen. Leer lassen = Standardname.</p>` : ''}
       <div class="group-title">App</div>
       <div class="group">
         <button class="linkbtn" data-action="install">Zum Home-Bildschirm hinzufügen</button>
@@ -545,7 +558,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
         <div class="req glass" data-tx="${t.id}">
           <div class="req-top">
             <div class="emoji">${esc(it.emoji)}</div>
-            <div class="txt"><b>${esc(who(t.from))} kauft ${t.qty}× ${esc(it.name)}</b><small>${fmt.format(new Date(t.ts))}${tag ? ` · ${tag}` : ''}</small></div>
+            <div class="txt"><b>${esc(who(t.from))} kauft ${t.qty}× ${esc(itemName(it))}</b><small>${fmt.format(new Date(t.ts))}${tag ? ` · ${tag}` : ''}</small></div>
             <div class="val ${t.st === 'denied' ? 'dim' : ''}">${money(t.qty * t.price)}</div>
           </div>
           ${extra}
@@ -591,7 +604,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
         ${reqMsg ? `<p class="hr-msg">${esc(reqMsg)}</p>` : ''}
         ${open.map((t) => `
         <div class="hr-row" data-tx="${t.id}">
-          <div class="hr-txt"><b>${esc(who(t.from))} kauft ${t.qty}× ${esc(byId[t.itemId].name)}</b><small>${money(t.qty * t.price)}</small></div>
+          <div class="hr-txt"><b>${esc(who(t.from))} kauft ${t.qty}× ${esc(itemName(byId[t.itemId]))}</b><small>${money(t.qty * t.price)}</small></div>
           <button class="hr-btn ok" data-action="req-ok">Erhalten</button>
           <button class="hr-btn no" data-action="req-no">Verwehren</button>
         </div>`).join('')}
@@ -659,7 +672,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
         <article class="slot glass" data-id="${it.id}" data-seller="${sl.id}">
           <span class="badge">×${held(it.id, o, sl.id)}</span>
           <span class="big">${esc(it.emoji)}</span>
-          <b>${esc(it.name || 'Ohne Namen')}</b>
+          <b>${esc(itemName(it) || 'Ohne Namen')}</b>
           ${many ? `<small class="from">von ${esc(who(sl.id))}</small>` : ''}
           ${!mp || o === mp ? `
           <button class="eat" data-action="inv-eat">Konsumieren</button>
@@ -1086,6 +1099,15 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
 
   // Einstellungen: live übernehmen, ohne das Eingabefeld neu zu zeichnen
   $('settings').addEventListener('input', (e) => {
+    if (e.target.dataset.myname !== undefined) { // eigener Artikelname: nur in diesem Konto gespeichert
+      const a = account();
+      if (!a) return;
+      a.names = a.names || {};
+      const v = e.target.value.trim();
+      if (v) a.names[e.target.dataset.myname] = v; else delete a.names[e.target.dataset.myname];
+      commit();
+      return;
+    }
     if (!isAdmin()) return; // Preise und Namen ändert nur der Admin
     const el = e.target;
     if (el.dataset.person !== undefined) {
