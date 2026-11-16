@@ -766,6 +766,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
   function bookCash(sign) {
     const i = $('cash-amount'), v = parseFloat((i && i.value || '').replace(',', '.'));
     if (!(v > 0) || !person(cashFor)) { if (i) i.focus(); return; }
+    if (myPerson() && !isAdmin() && cashFor !== myPerson()) return; // ohne Admin nur das eigene Konto
     state.tx.push({ id: uid(), itemId: null, from: cashFor, to: cashFor, type: 'cash', qty: 1, price: sign * round2(v), ts: Date.now() });
     cashFor = null;
     commit();
@@ -951,15 +952,19 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     }
   };
 
+  // Nur der Admin darf Preise, Spalten, Personen und Daten ändern
+  const ADMIN_ONLY = new Set(['add-person', 'del-person', 'add-item', 'del-item', 'picker', 'emoji-group', 'emoji', 'reset', 'data-save', 'data-load', 'copy-code', 'apply-code']);
   document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-action]');
     if (!el) return;
+    if (ADMIN_ONLY.has(el.dataset.action) && !isAdmin()) return;
     const holder = el.closest('[data-id]');
     actions[el.dataset.action](el, holder && holder.dataset.id);
   });
 
   // Einstellungen: live übernehmen, ohne das Eingabefeld neu zu zeichnen
   $('settings').addEventListener('input', (e) => {
+    if (!isAdmin()) return; // Preise und Namen ändert nur der Admin
     const el = e.target;
     if (el.dataset.person !== undefined) {
       const id = el.closest('[data-pid]').dataset.pid;
