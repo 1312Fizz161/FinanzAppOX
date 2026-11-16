@@ -562,7 +562,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     state.notes = state.notes.filter((n) => n.id !== editing || n.text.trim() || (n.tasks || []).length); // leere Notiz verwerfen
     editing = null;
     $('notes').classList.remove('editing');
-    save(); renderNotes();
+    save(); renderNotes(); renderHomeNotes();
   }
   $('notes').addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'task-new') { e.preventDefault(); actions['task-add'](); } });
   $('note-text').addEventListener('input', (e) => {
