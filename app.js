@@ -559,7 +559,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     const t = state.tx.find((x) => x.id === id);
     if (!t || t.st !== 'pending' || t.to !== JUNA) return;
     if (st === 'denied' && held(t.itemId, t.from, t.to) < t.qty) {
-      reqMsg = 'Matti hat es schon konsumiert. Verwehren geht nicht mehr.';
+      reqMsg = `${who(t.from)} hat es schon konsumiert. Verwehren geht nicht mehr.`;
       renderRequests();
       return;
     }
