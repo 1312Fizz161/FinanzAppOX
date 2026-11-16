@@ -96,8 +96,7 @@
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem(SKEY) || 'null'); } catch { session = null; }
   if (!session) { try { session = JSON.parse(localStorage.getItem(SKEY) || 'null'); } catch { session = null; } }
-  let sessionPending = !session; // lokal keine Anmeldung: kurz im privaten claude.ai-Bereich nachsehen
-  let cloudDb = null, cloudUid = null; // privater Bereich dieses claude.ai-Kontos (für die Anmeldung)
+  let sessionPending = !session; // beim Start: kurz auf die Anmeldung beim Server warten
   const account = () => (session && state.accounts.find((a) => a.id === session.accountId)) || null;
   // Die Person des angemeldeten Kontos (null, wenn nicht angemeldet oder Person gelöscht)
   const myPerson = () => { const a = account(); return a && person(a.personId) ? a.personId : null; };
@@ -112,15 +111,29 @@
     try {
       localStorage.removeItem(SKEY); sessionStorage.removeItem(SKEY);
       if (session) (session.keep === false ? sessionStorage : localStorage).setItem(SKEY, JSON.stringify(session));
-    } catch { /* Speicher im Browser blockiert: die Cloud-Kopie unten greift */ }
-    cloudSaveSession();
+    } catch { /* Speicher im Browser blockiert: dann gilt die Anmeldung nur für diesen Tab */ }
   }
-  // Angemeldet bleiben, auch wenn der Browser-Speicher blockiert ist: Kopie im privaten Bereich dieses claude.ai-Kontos
-  function cloudSaveSession() {
-    if (!cloudDb || !cloudUid) return;
-    const ref = cloudDb.doc('data/users/' + cloudUid + '/session');
-    if (session && session.keep !== false) ref.set({ accountId: session.accountId, user: session.user, admin: !!session.admin }).catch(() => {});
-    else ref.delete().catch(() => {});
+  // Anmeldung und gemeinsamer Stand über Supabase (eigenes Projekt)
+  const SB_URL = 'https://xrufazpqxaibxfdztmim.supabase.co';
+  const SB_KEY = 'sb_publishable_IT_DsHshBwhx7dDik3yUyg_aBGM8egj';
+  const KEEP_KEY = 'finanzappox.keep', AUTH_KEY = 'finanzappox.auth';
+  // „Angemeldet bleiben“: Anmeldung im Gerätespeicher; ohne Haken nur für diesen Tab
+  const sbStore = () => { try { return localStorage.getItem(KEEP_KEY) === '0' ? sessionStorage : localStorage; } catch { return sessionStorage; } };
+  const sbStorage = {
+    getItem: (k) => { try { return sbStore().getItem(k); } catch { return null; } },
+    setItem: (k, v) => { try { sbStore().setItem(k, v); } catch { /* egal */ } },
+    removeItem: (k) => { try { sbStore().removeItem(k); } catch { /* egal */ } },
+  };
+  const sb = (window.supabase && window.supabase.createClient)
+    ? window.supabase.createClient(SB_URL, SB_KEY, { auth: { storage: sbStorage, storageKey: AUTH_KEY, persistSession: true, autoRefreshToken: true } })
+    : null;
+  // Supabase braucht eine E-Mail-Adresse; der Username wird dafür zu einer Platzhalteradresse
+  const emailFor = (u) => u.toLowerCase() + '@finanzapp.app';
+  function signupMsg(err) {
+    const m = ((err && err.message) || '').toLowerCase();
+    if (m.includes('already')) return 'Diesen Username gibt es schon.';
+    if (m.includes('password')) return 'Das Passwort ist zu kurz oder zu einfach (mindestens 6 Zeichen).';
+    return 'Registrierung fehlgeschlagen: ' + ((err && err.message) || 'unbekannter Fehler');
   }
   async function hashPw(salt, pw) {
     const text = salt + ':' + pw;
@@ -757,7 +770,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
   function renderLogin() {
     const reg = loginMode === 'register' || !state.accounts.length;
     const keep = { u: $('login-user') ? $('login-user').value : '', p: $('login-pass') ? $('login-pass').value : '', p2: $('login-pass2') ? $('login-pass2').value : '', r: $('login-remember') ? $('login-remember').checked : true };
-    const free = state.people.filter((p) => !state.accounts.some((a) => a.personId === p.id));
+    const free = state.people.filter((p) => !state.accounts.some((a) => a.sb && a.personId === p.id));
     $('login').innerHTML = `
       <div class="lock-card glass">
         <span class="app-icon lock-icon">${EURO_SVG}</span>
@@ -772,7 +785,8 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
           <button class="pchip glass ${regPerson === 'new' ? 'on' : ''}" data-action="login-person" data-k="new"><span class="plus-sm">+</span><span>Neue Person</span></button>
         </div>` : ''}
         <label class="remember"><input type="checkbox" id="login-remember" checked> Angemeldet bleiben</label>
-        ${canStoreHere() ? '' : '<p class="hint">Dieser Browser speichert auf diesem Gerät gerade nichts. Angemeldet bleibst du dann über deinen claude.ai-Account, solange du dort angemeldet bist.</p>'}
+        ${canStoreHere() ? '' : '<p class="hint">Dieser Browser speichert auf diesem Gerät gerade nichts. Du musst dich dann bei jedem Öffnen neu anmelden.</p>'}
+        ${sb ? '' : '<p class="hint err">Keine Verbindung zum Server.</p>'}
         ${loginErr ? `<p class="hint err">${esc(loginErr)}</p>` : ''}
         <button class="btn pay" data-action="login-submit">${reg ? 'Konto erstellen' : 'Anmelden'}</button>
         ${state.accounts.length ? `<button class="linkbtn center" data-action="login-toggle">${reg ? 'Ich habe schon ein Konto' : 'Neues Konto erstellen'}</button>` : ''}
@@ -799,14 +813,13 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
   }
   $('login').addEventListener('keydown', (e) => { if (e.key === 'Enter') actions['login-submit'](); });
 
-  /* ---------- Online-Speicher (geteilt über claude.ai) ---------- */
-  let cloudDoc = null, cloudStatus = 'local'; // 'local' | 'on' | 'read' | 'err'
-  let pushTimer = null, pushing = false, pushAgain = false;
+  /* ---------- Gemeinsamer Stand (Supabase) ---------- */
+  let cloudStatus = 'local'; // 'local' | 'on' | 'err'
+  let pushTimer = null, pushing = false, pushAgain = false, realtimeCh = null;
   function syncHint() {
-    return cloudStatus === 'on' ? 'Online-Speicher aktiv: Jede Änderung landet auf dem Server und gilt für alle, die diese Seite nutzen – auf jedem Gerät.'
-      : cloudStatus === 'read' ? 'Du siehst den Online-Stand, darfst ihn aber nicht ändern (nur Lesezugriff). Eigene Änderungen bleiben nur auf diesem Gerät.'
-      : cloudStatus === 'err' ? 'Online-Speicher gerade nicht erreichbar – Änderungen werden auf diesem Gerät gespeichert.'
-      : 'Daten werden auf diesem Gerät gespeichert. Auf claude.ai angemeldet, teilt der Online-Speicher sie automatisch mit allen Geräten.';
+    return cloudStatus === 'on' ? 'Online-Speicher aktiv: Jede Änderung wird gespeichert und gilt auf allen Geräten.'
+      : cloudStatus === 'err' ? 'Keine Verbindung zum Server – Änderungen bleiben auf diesem Gerät und werden übertragen, sobald es klappt.'
+      : 'Noch nicht mit dem Server verbunden.';
   }
   function setCloudStatus(st) {
     if (cloudStatus === st) return;
@@ -815,25 +828,21 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     if (el) el.textContent = syncHint();
   }
   function cloudPush() {
-    if (!cloudDoc || cloudStatus === 'read') return;
+    if (!sb || !session) return;
     clearTimeout(pushTimer);
     pushTimer = setTimeout(doPush, 500);
   }
   function doPush() {
-    if (!cloudDoc) return;
+    if (!sb || !session) return;
     if (pushing) { pushAgain = true; return; } // immer nur ein Schreibvorgang
     pushing = true;
     const body = JSON.parse(JSON.stringify(state));
-    cloudDoc.set(body).then(
-      () => { setCloudStatus('on'); },
-      (e) => {
-        if (e && e.code === 'invalid_argument') setCloudStatus('read'); // keine Schreibrechte
-        else if (e && e.code === 'unavailable') { pushAgain = true; }
-        else setCloudStatus('err');
-      }
+    sb.from('app_state').update({ data: body, updated_at: new Date().toISOString() }).eq('id', 'main').then(
+      ({ error }) => setCloudStatus(error ? 'err' : 'on'),
+      () => setCloudStatus('err')
     ).finally(() => {
       pushing = false;
-      if (pushAgain && cloudStatus !== 'read') { pushAgain = false; cloudPush(); }
+      if (pushAgain) { pushAgain = false; cloudPush(); }
     });
   }
   function adoptRemote(d) {
@@ -844,37 +853,49 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     updateLock();
     if (document.body.classList.contains('sheet-open')) renderSettings();
   }
+  // Den Stand vom Server holen; ist er neuer als der lokale, wird er übernommen
+  async function loadRemote() {
+    if (!sb) { setCloudStatus('err'); return false; }
+    const { data, error } = await sb.from('app_state').select('data').eq('id', 'main').single();
+    if (error) { setCloudStatus('err'); return false; }
+    const d = data && data.data;
+    if (d && d.ts && d.ts > (state.ts || 0)) adoptRemote(d);
+    setCloudStatus('on');
+    return true;
+  }
+  // Live-Updates: Änderungen anderer Geräte kommen sofort an
+  function startRealtime() {
+    if (!sb || realtimeCh) return;
+    realtimeCh = sb.channel('app-state').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_state', filter: 'id=eq.main' }, (p) => {
+      const d = p.new && p.new.data;
+      if (!d || !d.ts) return;
+      if (d.by === CLIENT && d.ts === state.ts) return; // eigenes Echo
+      if (d.ts > (state.ts || 0)) adoptRemote(d);
+    }).subscribe();
+  }
+  function stopRealtime() {
+    if (sb && realtimeCh) { try { sb.removeChannel(realtimeCh); } catch { /* egal */ } }
+    realtimeCh = null;
+  }
   (async () => {
-    if (sessionPending) setTimeout(resolveSession, 3000); // Notbremse, falls der Speicher nie antwortet
-    if (!(window.claude && window.claude.use)) { resolveSession(); return; }
-    let db = null, uid = null;
-    try { db = await window.claude.use('db'); } catch { /* wie nicht verfügbar */ }
-    try { const user = await window.claude.use('user'); uid = user ? await user.id() : null; } catch { /* keine Kennung */ }
-    if (!db) { resolveSession(); return; } // nicht verfügbar: lokal weiterarbeiten
-    cloudDb = db; cloudUid = uid || null;
-    if (uid && !account()) {
-      try {
-        const snap = await db.doc('data/users/' + uid + '/session').get();
-        const d = snap.exists ? snap.data() : null;
-        if (d && d.accountId) {
-          session = { accountId: d.accountId, user: d.user, admin: !!d.admin, keep: true };
-          try { localStorage.setItem(SKEY, JSON.stringify(session)); } catch { /* egal */ }
-        }
-      } catch { /* keine gespeicherte Anmeldung */ }
+    if (sessionPending) setTimeout(resolveSession, 4000); // Notbremse, falls der Server nicht antwortet
+    if (!sb) { setCloudStatus('err'); resolveSession(); return; }
+    let user = null;
+    try { const { data } = await sb.auth.getSession(); user = data && data.session ? data.session.user : null; } catch { user = null; }
+    if (user) {
+      await loadRemote();
+      const a = state.accounts.find((x) => x.id === user.id);
+      if (a) {
+        session = { accountId: a.id, user: a.user, keep: session ? session.keep !== false : true, admin: !!(session && session.admin && session.accountId === a.id) };
+        saveSession(); startRealtime();
+      } else {
+        try { await sb.auth.signOut(); } catch { /* egal */ }
+        session = null; saveSession();
+      }
+    } else {
+      session = null; saveSession();
     }
     resolveSession();
-    cloudDoc = db.doc('app/state');
-    cloudDoc.onSnapshot((snap) => {
-      if (!snap.exists) { // noch nichts im Online-Speicher: eigenen Stand hochladen
-        if (!snap.metadata.fromCache) { setCloudStatus('on'); cloudPush(); }
-        return;
-      }
-      const d = snap.data();
-      setCloudStatus(cloudStatus === 'read' ? 'read' : 'on');
-      if (d.by === CLIENT && d.ts === state.ts) return; // Echo des eigenen Schreibens
-      if ((d.ts || 0) > (state.ts || 0)) adoptRemote(d);
-      else if ((d.ts || 0) < (state.ts || 0) && !snap.metadata.fromCache) cloudPush(); // lokal ist neuer
-    }, () => setCloudStatus('err'));
   })();
 
   function renderMain() { renderHome(); renderAccounts(); renderItems(); renderStats(); renderHistory(); renderInventory(); renderMac(); renderDock(); renderHomeReq(); renderHomeNotes(); }
@@ -1043,18 +1064,17 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     },
     'pw-submit': async () => {
       const a = account();
-      if (!a || !pwOpen) return;
+      if (!a || !pwOpen || !sb) return;
       const oldPw = $('pw-old').value || '', n1 = $('pw-new').value || '', n2 = $('pw-new2').value || '';
       const fail = (m) => { pwErr = m; pwOk = ''; renderSettings(); const i = $('pw-old'); if (i) i.focus(); };
-      if ((await hashPw(a.salt, oldPw)) !== a.hash) return fail('Das aktuelle Passwort stimmt nicht.');
-      if (n1.length < 4) return fail('Das neue Passwort braucht mindestens 4 Zeichen.');
+      const { error: e1 } = await sb.auth.signInWithPassword({ email: emailFor(a.user), password: oldPw });
+      if (e1) return fail('Das aktuelle Passwort stimmt nicht.');
+      if (n1.length < 6) return fail('Das neue Passwort braucht mindestens 6 Zeichen.');
       if (n1 !== n2) return fail('Die neuen Passwörter stimmen nicht überein.');
       if (n1 === oldPw) return fail('Das neue Passwort muss anders sein als das alte.');
-      const salt = uid();
-      a.salt = salt;
-      a.hash = await hashPw(salt, n1);
+      const { error: e2 } = await sb.auth.updateUser({ password: n1 });
+      if (e2) return fail('Das Passwort konnte nicht geändert werden.');
       pwOpen = false; pwErr = ''; pwOk = 'Passwort wurde geändert.';
-      commit();
       renderSettings();
     },
     'admin-open': () => {
@@ -1085,33 +1105,45 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
       const fail = (m) => { loginErr = m; renderLogin(); };
       const u = ($('login-user').value || '').trim(), pw = $('login-pass').value || '';
       const reg = loginMode === 'register' || !state.accounts.length;
-      if (!u) return fail('Bitte einen Username eingeben.');
-      if (pw.length < 4) return fail('Das Passwort braucht mindestens 4 Zeichen.');
+      if (!sb) return fail('Keine Verbindung zum Server. Bitte später noch einmal versuchen.');
+      if (!/^[a-z0-9._-]{3,20}$/i.test(u)) return fail('Username: 3 bis 20 Zeichen, nur Buchstaben, Zahlen, Punkt, Minus oder Unterstrich.');
+      if (pw.length < 6) return fail('Das Passwort braucht mindestens 6 Zeichen.');
+      const keep = $('login-remember').checked;
       loginBusy = true;
       try {
+        try { localStorage.setItem(KEEP_KEY, keep ? '1' : '0'); if (!keep) localStorage.removeItem(AUTH_KEY); } catch { /* egal */ }
         if (reg) {
           if (($('login-pass2').value || '') !== pw) return fail('Die Passwörter stimmen nicht überein.');
-          if (state.accounts.some((a) => a.user.toLowerCase() === u.toLowerCase())) return fail('Diesen Username gibt es schon.');
           if (!regPerson) return fail('Wähle unten, wer du bist.');
+          await loadRemote();
+          if (state.accounts.some((a) => a.sb && a.user.toLowerCase() === u.toLowerCase())) return fail('Diesen Username gibt es schon.');
+          if (regPerson !== 'new' && (!person(regPerson) || state.accounts.some((a) => a.sb && a.personId === regPerson))) return fail('Diese Person ist schon vergeben.');
+          const { data, error } = await sb.auth.signUp({ email: emailFor(u), password: pw });
+          if (error) return fail(signupMsg(error));
+          if (!data.session) return fail('Konto angelegt. Bitte jetzt mit Username und Passwort anmelden.');
           let pid = regPerson;
           if (pid === 'new') { const p = { id: uid(), name: u }; state.people.push(p); pid = p.id; }
-          else if (!person(pid) || state.accounts.some((a) => a.personId === pid)) return fail('Diese Person ist schon vergeben.');
-          const salt = uid();
-          const a = { id: uid(), user: u, salt, hash: await hashPw(salt, pw), personId: pid };
-          state.accounts.push(a);
-          session = { accountId: a.id, user: a.user, keep: $('login-remember').checked };
+          state.accounts = state.accounts.filter((a) => a.personId !== pid || a.sb); // alte Konten dieser Person ersetzen
+          state.accounts.push({ id: data.user.id, user: u, personId: pid, names: {}, sb: true });
+          session = { accountId: data.user.id, user: u, keep, admin: false };
         } else {
-          const a = state.accounts.find((x) => x.user.toLowerCase() === u.toLowerCase());
-          if (!a || (await hashPw(a.salt, pw)) !== a.hash) return fail('Username oder Passwort ist falsch.');
-          session = { accountId: a.id, user: a.user, keep: $('login-remember').checked };
+          const { data, error } = await sb.auth.signInWithPassword({ email: emailFor(u), password: pw });
+          if (error) return fail('Username oder Passwort ist falsch.');
+          await loadRemote();
+          const a = state.accounts.find((x) => x.id === data.user.id);
+          if (!a) { try { await sb.auth.signOut(); } catch { /* egal */ } return fail('Für dieses Konto ist noch kein Stand gespeichert. Bitte einmal neu registrieren.'); }
+          session = { accountId: a.id, user: a.user, keep, admin: false };
         }
-        saveSession();
-        if (myPerson()) state.buyer = myPerson();
+        saveSession(); startRealtime();
         loginErr = ''; regPerson = null; loginMode = 'login';
+        if (myPerson()) state.buyer = myPerson();
         commit(); updateLock();
       } finally { loginBusy = false; }
     },
-    logout: () => { session = null; saveSession(); closeSheet(); loginErr = ''; renderMain(); updateLock(); },
+    logout: async () => {
+      try { if (sb) await sb.auth.signOut(); } catch { /* egal */ }
+      stopRealtime(); session = null; saveSession(); closeSheet(); loginErr = ''; renderMain(); updateLock();
+    },
     'stat-mode': (el) => { state.statMode = el.dataset.k; statOffset = 0; save(); renderStats(); },
     'stat-prev': () => { statOffset--; renderStats(); },
     'stat-next': () => { if (statOffset < 0) { statOffset++; renderStats(); } },
