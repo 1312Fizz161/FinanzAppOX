@@ -131,11 +131,14 @@
 
   const buyer = () => myPerson() || (person(state.buyer) ? state.buyer : state.people[0].id);
   const seller = () => { const b = buyer(); return person(state.seller) && state.seller !== b ? state.seller : state.people.find((p) => p.id !== b).id; };
-  const sumTx = (itemId, from, type, to) => state.tx.reduce((sum, t) => sum + (t.itemId === itemId && t.from === from && t.type === type && (!to || t.to === to) ? t.qty : 0), 0);
+  // Verwehrte Käufe gelten als nie passiert (Geld zurück, kein Inventar). Offene Käufe zählen schon.
+  const liveTx = () => state.tx.filter((t) => t.st !== 'denied');
+  const JUNA = 'partner'; // die Person, die Käufe bestätigt
+  const sumTx = (itemId, from, type, to) => liveTx().reduce((sum, t) => sum + (t.itemId === itemId && t.from === from && t.type === type && (!to || t.to === to) ? t.qty : 0), 0);
   // Stücke im Inventar einer Person: gekauft, weder konsumiert noch zurückgegeben (optional nur von einem Verkäufer)
   const held = (itemId, key, from) => sumTx(itemId, key, 'buy', from) + sumTx(itemId, key, 'loan', from) - sumTx(itemId, key, 'eat', from) - sumTx(itemId, key, 'ret', from) - sumTx(itemId, key, 'retl', from);
   // Geldsumme der Buchungen eines Typs von a bei b
-  const moneyTx = (itemId, a, type, b) => state.tx.reduce((sum, t) => sum + (t.itemId === itemId && t.from === a && t.type === type && t.to === b ? t.qty * t.price : 0), 0);
+  const moneyTx = (itemId, a, type, b) => liveTx().reduce((sum, t) => sum + (t.itemId === itemId && t.from === a && t.type === type && t.to === b ? t.qty * t.price : 0), 0);
   // Geliehene, noch nicht bezahlte (und nicht zurückgegebene) Stücke von a bei b
   const debtUnits = (itemId, a, b) => sumTx(itemId, a, 'loan', b) - sumTx(itemId, a, 'settle', b) - sumTx(itemId, a, 'retl', b);
   // Stückpreis beim Kauf von q auf einmal (Mengenrabatt ab bulkQty Stück)
@@ -150,7 +153,7 @@
   const debtMoney = (itemId, a, b) => round2(moneyTx(itemId, a, 'loan', b) - moneyTx(itemId, a, 'settle', b) - moneyTx(itemId, a, 'retl', b));
   const loanAvg = (itemId, a, b) => { const u = debtUnits(itemId, a, b); return u > 0 ? round2(debtMoney(itemId, a, b) / u) : acqAvg(itemId, a, b); };
   // Kontostand aus den Buchungen: Einzahlungen plus Verkäufe minus Käufe; Rückgaben drehen den Kauf um.
-  const balance = (key) => round2(state.tx.reduce((sum, t) => {
+  const balance = (key) => round2(liveTx().reduce((sum, t) => {
     const v = t.qty * t.price;
     if (t.type === 'cash') return sum + (t.from === key ? v : 0);
     if (t.type === 'buy' || t.type === 'settle') return sum + (t.to === key ? v : 0) - (t.from === key ? v : 0);
@@ -294,7 +297,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     const rows = state.people.filter((p) => !restrictTo() || p.id === restrictTo()).map((p) => {
       let total = 0;
       const counts = {};
-      state.tx.forEach((t) => {
+      liveTx().forEach((t) => {
         if (t.type === 'eat' && t.from === p.id && t.ts >= start && t.ts < end) {
           total += t.qty * t.price;
           counts[t.itemId] = (counts[t.itemId] || 0) + t.qty;
@@ -344,13 +347,14 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
       </div>`;
       }
       const it = byId[t.itemId];
-      const text = t.type === 'buy' ? `${P} kauft ${t.qty}× ${esc(it.name)} bei ${R}`
+      const pend = t.st === 'pending', denied = t.st === 'denied';
+      const text = t.type === 'buy' ? `${P} kauft ${t.qty}× ${esc(it.name)} bei ${R}${pend ? ' · Juna bestätigt noch' : denied ? ' · von Juna verwehrt' : ''}`
         : t.type === 'loan' ? `${P} leiht ${t.qty}× ${esc(it.name)} bei ${R}`
         : t.type === 'settle' ? `${P} zahlt ${R} ${sum} für Geliehenes`
         : t.type === 'eat' ? `${P} konsumiert ${t.qty}× ${esc(it.name)}`
         : t.type === 'retl' ? `${P} gibt ${R} ${t.qty}× ${esc(it.name)} zurück (war geliehen)`
         : `${P} gibt ${R} ${t.qty}× ${esc(it.name)} zurück`;
-      const val = t.type === 'ret' ? `<div class="val pos">+${sum}</div>`
+      const val = denied ? '<div class="val dim">storniert</div>' : t.type === 'ret' ? `<div class="val pos">+${sum}</div>`
         : t.type === 'buy' || t.type === 'settle' ? `<div class="val neg">−${sum}</div>`
         : t.type === 'loan' ? `<div class="val dim">${sum} offen</div>` : '';
       return `
@@ -516,7 +520,66 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
   const pad = (n) => String(n).padStart(2, '0');
   const countdown = (ms) => { const t = Math.max(0, Math.ceil(ms / 1000)); return `${pad(Math.floor(t / 3600))}:${pad(Math.floor(t / 60) % 60)}:${pad(t % 60)}`; };
   let macWasOver = null;
+  /* ---------- Anfragen (für Juna statt MacPoints) ---------- */
+  const INBOX_SVG = '<svg viewBox="0 0 24 24"><path d="M3 13l2.5-7h13L21 13v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 13h5l1 2h6l1-2h5"/></svg>';
+  const requestsMode = () => myPerson() === JUNA;
+  function renderRequests() {
+    $('mac-title').textContent = 'Anfragen';
+    const byId = Object.fromEntries(state.items.map((it) => [it.id, it]));
+    const fmt = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const open = state.tx.filter((t) => t.st === 'pending' && t.to === JUNA && byId[t.itemId] && person(t.from)).slice().reverse();
+    const done = state.tx.filter((t) => (t.st === 'ok' || t.st === 'denied') && t.to === JUNA && t.type === 'buy' && byId[t.itemId] && person(t.from)).slice().reverse().slice(0, 20);
+    const row = (t, extra, tag) => {
+      const it = byId[t.itemId];
+      return `
+        <div class="req glass" data-tx="${t.id}">
+          <div class="req-top">
+            <div class="emoji">${esc(it.emoji)}</div>
+            <div class="txt"><b>${esc(who(t.from))} kauft ${t.qty}× ${esc(it.name)}</b><small>${fmt.format(new Date(t.ts))}${tag ? ` · ${tag}` : ''}</small></div>
+            <div class="val ${t.st === 'denied' ? 'dim' : ''}">${money(t.qty * t.price)}</div>
+          </div>
+          ${extra}
+        </div>`;
+    };
+    $('mac-body').innerHTML = `
+      ${reqMsg ? `<p class="hint err">${esc(reqMsg)}</p>` : ''}
+      <div class="section-title first"><span>Offen</span><small>${open.length}</small></div>
+      ${open.length ? `<div class="req-list">${open.map((t) => row(t, `
+          <div class="req-btns">
+            <button class="btn pay" data-action="req-ok">Erhalten<small>hat er bekommen</small></button>
+            <button class="btn use" data-action="req-no">Verwehren<small>Geld geht zurück</small></button>
+          </div>`, '')).join('')}</div>` : '<div class="empty">Gerade keine offenen Anfragen.</div>'}
+      <div class="section-title"><span>Bearbeitet</span></div>
+      ${done.length ? `<div class="req-list">${done.map((t) => row(t, '', t.st === 'denied' ? 'verwehrt, Geld zurück' : 'erhalten bestätigt')).join('')}</div>` : '<div class="empty">Noch nichts bearbeitet.</div>'}`;
+  }
+  let reqMsg = '';
+  function decideReq(el, st) {
+    if (!requestsMode()) return;
+    const id = el.closest('[data-tx]').dataset.tx;
+    const t = state.tx.find((x) => x.id === id);
+    if (!t || t.st !== 'pending' || t.to !== JUNA) return;
+    if (st === 'denied' && held(t.itemId, t.from, t.to) < t.qty) {
+      reqMsg = 'Matti hat es schon konsumiert. Verwehren geht nicht mehr.';
+      renderRequests();
+      return;
+    }
+    reqMsg = '';
+    t.st = st;
+    if (navigator.vibrate) navigator.vibrate(10);
+    commit();
+  }
+  // Leiste: für Juna ein Posteingang-Symbol mit Anzahl offener Anfragen
+  function renderDock() {
+    const j = requestsMode(), icon = document.querySelector('[data-app="mac"] .app-icon');
+    if (icon) icon.innerHTML = j ? INBOX_SVG : MAC_SVG;
+    const n = j ? state.tx.filter((t) => t.st === 'pending' && t.to === JUNA).length : 0;
+    const b = $('req-badge');
+    if (b) { b.textContent = n || ''; b.classList.toggle('on', n > 0); }
+  }
+
   function renderMac(popLast) {
+    if (requestsMode()) { renderRequests(); return; }
+    $('mac-title').textContent = 'MacPoints';
     const m = state.mac, active = m.loanUntil != null, left = active ? m.loanUntil - Date.now() : 0, over = active && left <= 0;
     macWasOver = over;
     const until = active ? new Date(m.loanUntil).toLocaleString('de-DE', { weekday: 'long', hour: '2-digit', minute: '2-digit' }) : '';
@@ -544,7 +607,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
   }
   function tickMac() {
     const m = state.mac;
-    if (m.loanUntil == null) return;
+    if (requestsMode() || m.loanUntil == null) return;
     const left = m.loanUntil - Date.now();
     if ((left <= 0) !== macWasOver) { renderMac(); return; }
     const t = $('mac-time'), bar = $('mac-bar');
@@ -722,7 +785,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     }, () => setCloudStatus('err'));
   })();
 
-  function renderMain() { renderHome(); renderAccounts(); renderItems(); renderStats(); renderHistory(); renderInventory(); }
+  function renderMain() { renderHome(); renderAccounts(); renderItems(); renderStats(); renderHistory(); renderInventory(); renderMac(); renderDock(); }
   function commit() { save(); renderMain(); }
 
   /* ---------- Aktionen ---------- */
@@ -739,7 +802,8 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     const it = state.items.find((i) => i.id === itemId);
     if (!it) return;
     const q = qty[itemId] || 1;
-    state.tx.push({ id: uid(), itemId, from: buyer(), to: seller(), type, qty: q, price: unitPrice(it, q), ts: Date.now() });
+    const needsOk = type === 'buy' && seller() === JUNA; // Käufe bei Juna braucht ihre Bestätigung
+    state.tx.push({ id: uid(), itemId, from: buyer(), to: seller(), type, qty: q, price: unitPrice(it, q), ts: Date.now(), ...(needsOk ? { st: 'pending' } : {}) });
     qty[itemId] = 1;
     commit();
     const card = document.querySelector(`.card[data-id="${itemId}"]`);
@@ -837,6 +901,8 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
       state.notes = state.notes.filter((n) => n.id !== editing);
       closeNote();
     },
+    'req-ok': (el) => decideReq(el, 'ok'),
+    'req-no': (el) => decideReq(el, 'denied'),
     'add-item': () => {
       const it = { id: uid(), name: 'Geschenk ' + (state.items.length + 1), price: 3, emoji: EMOJIS[state.items.length % EMOJIS.length] };
       state.items.push(it);
