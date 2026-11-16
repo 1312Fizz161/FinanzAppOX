@@ -159,7 +159,17 @@
   // Geliehene, noch nicht bezahlte (und nicht zurückgegebene) Stücke von a bei b
   const debtUnits = (itemId, a, b) => sumTx(itemId, a, 'loan', b) - sumTx(itemId, a, 'settle', b) - sumTx(itemId, a, 'retl', b);
   // Stückpreis beim Kauf von q auf einmal (Mengenrabatt ab bulkQty Stück)
-  const unitPrice = (it, q) => (it.bulkQty >= 2 && it.bulkPrice != null && q >= it.bulkQty ? it.bulkPrice : it.price);
+  // Preise gehören dem Verkäufer: jeder Account setzt seine eigenen; ohne eigene gelten die Standardpreise
+  const priceFor = (it, sellerId) => {
+    const a = sellerId && state.accounts.find((x) => x.personId === sellerId);
+    const o = (a && a.prices && a.prices[it.id]) || {};
+    return {
+      price: o.p != null ? o.p : it.price,
+      bulkQty: o.bq !== undefined ? o.bq : it.bulkQty,
+      bulkPrice: o.bp !== undefined ? o.bp : it.bulkPrice,
+    };
+  };
+  const unitPrice = (it, q, sellerId) => { const pr = priceFor(it, sellerId); return (pr.bulkQty >= 2 && pr.bulkPrice != null && q >= pr.bulkQty ? pr.bulkPrice : pr.price); };
   // Durchschnittspreis, zu dem o das Stück bei sl bekommen hat (für Konsum und Rückgabe)
   const acqAvg = (itemId, o, sl) => {
     const u = sumTx(itemId, o, 'buy', sl) + sumTx(itemId, o, 'loan', sl);
@@ -267,7 +277,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     const p = buyer(), sl = seller(), receiver = esc(who(sl));
     $('items').innerHTML = state.items.map((it) => {
       const c = held(it.id, p), q = qty[it.id] || 1;
-      const unit = unitPrice(it, q), total = round2(unit * q), rabatt = it.bulkQty >= 2 && it.bulkPrice != null;
+      const pr = priceFor(it, sl), unit = unitPrice(it, q, sl), total = round2(unit * q), rabatt = pr.bulkQty >= 2 && pr.bulkPrice != null;
       return `
       <article class="card glass" data-id="${it.id}">
         <div class="card-top">
@@ -275,13 +285,13 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
           <div class="count ${c > 0 ? 'pos' : ''}"><b>${c}</b><small>${esc(who(p))} hat</small></div>
         </div>
         <h3>${esc(itemName(it) || 'Ohne Namen')}</h3>
-        <div class="price">${money(it.price)} pro Stück${rabatt ? ` · ab ${it.bulkQty}: ${money(it.bulkPrice)}` : ''}</div>
+        <div class="price">${money(pr.price)} pro Stück${rabatt ? ` · ab ${pr.bulkQty}: ${money(pr.bulkPrice)}` : ''}</div>
         <div class="stepper">
           <button data-action="qty" data-d="-1" aria-label="Weniger">−</button>
           <span>${q}×</span>
           <button data-action="qty" data-d="1" aria-label="Mehr">+</button>
         </div>
-        <button class="btn pay" data-action="buy">Kaufen<small>${money(total)} an ${receiver}${unit < it.price ? ` · je ${money(unit)}` : ''}</small></button>
+        <button class="btn pay" data-action="buy">Kaufen<small>${money(total)} an ${receiver}${unit < pr.price ? ` · je ${money(unit)}` : ''}</small></button>
         <button class="btn loan" data-action="loan">Leihen</button>
       </article>`;
     }).join('') || '<div class="empty wide">Noch keine Spalte. Lege im Zahnrad eine an.</div>';
@@ -417,6 +427,15 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
         </div>`).join('')}
       </div>
       <p class="hint">Nur du siehst diese Namen. Leer lassen = Standardname.</p>` : ''}
+      ${account() ? `
+      <div class="group-title">Meine Preise</div>
+      ${state.items.map((it) => { const pr = priceFor(it, myPerson()); return `
+      <div class="group" style="margin-bottom:10px">
+        <div class="field"><div class="emoji">${esc(it.emoji)}</div><span class="pname">${esc(itemName(it))}</span></div>
+        <div class="field"><label>Preis</label><input class="num" data-myprice="${it.id}" data-f="p" inputmode="decimal" value="${String(pr.price).replace('.', ',')}" aria-label="Preis für ${esc(itemName(it))}"><span class="unit">€</span></div>
+        <div class="field bulk"><label>Rabatt</label><span class="unit">ab</span><input class="num tiny" data-myprice="${it.id}" data-f="bq" inputmode="numeric" value="${pr.bulkQty || ''}" placeholder="–" aria-label="Rabatt ab Stück"><span class="unit">Stück, je</span><input class="num" data-myprice="${it.id}" data-f="bp" inputmode="decimal" value="${pr.bulkPrice != null ? String(pr.bulkPrice).replace('.', ',') : ''}" placeholder="–" aria-label="Rabattpreis"><span class="unit">€</span></div>
+      </div>`; }).join('')}
+      <p class="hint">Diese Preise gelten, wenn andere bei dir kaufen. Rabatt-Felder leer lassen = kein Rabatt.</p>` : ''}
       <div class="group-title">App</div>
       <div class="group">
         <button class="linkbtn" data-action="install">Zum Home-Bildschirm hinzufügen</button>
@@ -734,7 +753,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
           ${many ? `<small class="from">von ${esc(who(sl.id))}</small>` : ''}
           ${!mp || o === mp ? `
           <button class="eat" data-action="inv-eat">Konsumieren</button>
-          <button class="back" data-action="inv-ret">Zurückgeben<small>${debtUnits(it.id, o, sl.id) > 0 ? 'war geliehen · Schuld entfällt' : `+${money(it.price)} von ${esc(who(sl.id))}`}</small></button>` : '<small class="viewonly">Nur ansehen</small>'}
+          <button class="back" data-action="inv-ret">Zurückgeben<small>${debtUnits(it.id, o, sl.id) > 0 ? 'war geliehen · Schuld entfällt' : `+${money(acqAvg(it.id, o, sl.id))} von ${esc(who(sl.id))}`}</small></button>` : '<small class="viewonly">Nur ansehen</small>'}
         </article>`).join('')).join('');
     $('inv-body').innerHTML = `
       ${restrictTo() ? '' : `
@@ -916,7 +935,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     if (!it) return;
     const q = qty[itemId] || 1;
     const needsOk = type === 'buy'; // Käufe brauchen die Bestätigung des Verkäufers
-    state.tx.push({ id: uid(), itemId, from: buyer(), to: seller(), type, qty: q, price: unitPrice(it, q), ts: Date.now(), ...(needsOk ? { st: 'pending' } : {}) });
+    state.tx.push({ id: uid(), itemId, from: buyer(), to: seller(), type, qty: q, price: unitPrice(it, q, seller()), ts: Date.now(), ...(needsOk ? { st: 'pending' } : {}) });
     qty[itemId] = 1;
     commit();
     const card = document.querySelector(`.card[data-id="${itemId}"]`);
@@ -1205,6 +1224,21 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
       a.names = a.names || {};
       const v = e.target.value.trim();
       if (v) a.names[e.target.dataset.myname] = v; else delete a.names[e.target.dataset.myname];
+      commit();
+      return;
+    }
+    if (e.target.dataset.myprice !== undefined) { // eigene Preise: gelten, wenn andere bei diesem Account kaufen
+      const a = account();
+      if (!a) return;
+      a.prices = a.prices || {};
+      const id = e.target.dataset.myprice, f = e.target.dataset.f;
+      const cur = a.prices[id] || {};
+      const txt = e.target.value.trim().replace(',', '.');
+      const num = parseFloat(txt);
+      if (f === 'p') { if (num >= 0) cur.p = round2(num); else delete cur.p; }
+      if (f === 'bq') { const n = parseInt(txt, 10); cur.bq = n >= 2 ? n : null; }
+      if (f === 'bp') { cur.bp = num >= 0 ? round2(num) : null; }
+      a.prices[id] = cur;
       commit();
       return;
     }

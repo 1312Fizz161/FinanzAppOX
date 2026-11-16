@@ -510,3 +510,6 @@ body.locked .dock { display: none; }
 .hn-task { display: flex; align-items: center; gap: 10px; text-align: left; font-size: 14px; padding: 3px 0; color: var(--text); }
 .hn-task > span:last-child { min-width: 0; overflow-wrap: anywhere; }
 .hn-task:active { opacity: .7; }
+
+/* ---------- Eigene Preise ---------- */
+.pname { flex: 1; min-width: 0; font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
