@@ -465,3 +465,6 @@ body.locked .dock { display: none; }
 .req-top .val.dim { color: var(--faint); text-decoration: line-through; }
 .req-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .req-btns .btn { margin-top: 0; }
+
+/* Abstand Label/Wert im Konto-Bereich */
+.acc-as { padding-left: 14px; }

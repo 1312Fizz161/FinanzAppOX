@@ -378,6 +378,16 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
       <div class="group-title">Konto</div>
       <div class="group">
         <div class="field"><label>Angemeldet</label><div class="acc-as">${esc(account().user)}${myPerson() ? ` · ${esc(who(myPerson()))}` : ''}</div></div>
+        <button class="linkbtn" data-action="pw-open">Passwort ändern</button>
+        ${pwOpen ? `
+        <div class="codebox">
+          <input id="pw-old" type="password" placeholder="Aktuelles Passwort" autocomplete="current-password" aria-label="Aktuelles Passwort">
+          <input id="pw-new" type="password" placeholder="Neues Passwort" autocomplete="new-password" aria-label="Neues Passwort">
+          <input id="pw-new2" type="password" placeholder="Neues Passwort wiederholen" autocomplete="new-password" aria-label="Neues Passwort wiederholen">
+          ${pwErr ? `<p class="hint err">${esc(pwErr)}</p>` : ''}
+          <button class="btn pay" data-action="pw-submit">Passwort speichern</button>
+        </div>` : ''}
+        ${pwOk ? `<p class="hint inpad">${esc(pwOk)}</p>` : ''}
         <button class="linkbtn danger" data-action="logout">Abmelden</button>
       </div>` : ''}
       <div class="group-title">App</div>
@@ -650,6 +660,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
   let loginMode = 'login', loginErr = '', regPerson = null, loginBusy = false;
   let installEvt = null, installOpen = false;
   let adminOpen = false, adminErr = '';
+  let pwOpen = false, pwErr = '', pwOk = ''; // Passwort ändern (eigenes Konto)
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; });
   function installText() {
     const standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone;
@@ -795,7 +806,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     if (v !== 'manager') closeSheet();
     if (v !== 'notes' && editing) closeNote();
   }
-  function openSheet() { pickerFor = confirmDel = confirmDelPerson = dataOpen = null; loadError = ''; installOpen = false; adminOpen = false; adminErr = ''; confirmReset = false; renderSettings(); document.body.classList.add('sheet-open'); $('sheet').setAttribute('aria-hidden', 'false'); }
+  function openSheet() { pickerFor = confirmDel = confirmDelPerson = dataOpen = null; loadError = ''; installOpen = false; adminOpen = false; adminErr = ''; pwOpen = false; pwErr = ''; pwOk = ''; confirmReset = false; renderSettings(); document.body.classList.add('sheet-open'); $('sheet').setAttribute('aria-hidden', 'false'); }
   function closeSheet() { document.activeElement && document.activeElement.blur(); document.body.classList.remove('sheet-open'); $('sheet').setAttribute('aria-hidden', 'true'); }
 
   function book(itemId, type) {
@@ -919,6 +930,28 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
       state.items = state.items.filter((i) => i.id !== id);
       state.tx = state.tx.filter((t) => t.itemId !== id);
       confirmDel = null; commit(); renderSettings();
+    },
+    'pw-open': () => {
+      pwOpen = !pwOpen; pwErr = ''; pwOk = '';
+      renderSettings();
+      const i = $('pw-old');
+      if (i) { i.scrollIntoView({ block: 'center' }); i.focus(); }
+    },
+    'pw-submit': async () => {
+      const a = account();
+      if (!a || !pwOpen) return;
+      const oldPw = $('pw-old').value || '', n1 = $('pw-new').value || '', n2 = $('pw-new2').value || '';
+      const fail = (m) => { pwErr = m; pwOk = ''; renderSettings(); const i = $('pw-old'); if (i) i.focus(); };
+      if ((await hashPw(a.salt, oldPw)) !== a.hash) return fail('Das aktuelle Passwort stimmt nicht.');
+      if (n1.length < 4) return fail('Das neue Passwort braucht mindestens 4 Zeichen.');
+      if (n1 !== n2) return fail('Die neuen Passwörter stimmen nicht überein.');
+      if (n1 === oldPw) return fail('Das neue Passwort muss anders sein als das alte.');
+      const salt = uid();
+      a.salt = salt;
+      a.hash = await hashPw(salt, n1);
+      pwOpen = false; pwErr = ''; pwOk = 'Passwort wurde geändert.';
+      commit();
+      renderSettings();
     },
     'admin-open': () => {
       adminOpen = !adminOpen; adminErr = '';
@@ -1054,6 +1087,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
   $('settings').addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' || e.target.tagName === 'TEXTAREA') return;
     if (e.target.id === 'admin-pass') { actions['admin-submit'](); return; }
+    if (e.target.id === 'pw-old' || e.target.id === 'pw-new' || e.target.id === 'pw-new2') { actions['pw-submit'](); return; }
     e.target.blur();
   });
   $('settings').addEventListener('focusout', (e) => {
