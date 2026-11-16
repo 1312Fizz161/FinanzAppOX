@@ -94,6 +94,8 @@
   let session = null;
   try { session = JSON.parse(sessionStorage.getItem(SKEY) || 'null'); } catch { session = null; }
   if (!session) { try { session = JSON.parse(localStorage.getItem(SKEY) || 'null'); } catch { session = null; } }
+  let sessionPending = !session; // lokal keine Anmeldung: kurz im privaten claude.ai-Bereich nachsehen
+  let cloudDb = null, cloudUid = null; // privater Bereich dieses claude.ai-Kontos (für die Anmeldung)
   const account = () => (session && state.accounts.find((a) => a.id === session.accountId)) || null;
   // Die Person des angemeldeten Kontos (null, wenn nicht angemeldet oder Person gelöscht)
   const myPerson = () => { const a = account(); return a && person(a.personId) ? a.personId : null; };
@@ -106,7 +108,15 @@
     try {
       localStorage.removeItem(SKEY); sessionStorage.removeItem(SKEY);
       if (session) (session.keep === false ? sessionStorage : localStorage).setItem(SKEY, JSON.stringify(session));
-    } catch { /* egal */ }
+    } catch { /* Speicher im Browser blockiert: die Cloud-Kopie unten greift */ }
+    cloudSaveSession();
+  }
+  // Angemeldet bleiben, auch wenn der Browser-Speicher blockiert ist: Kopie im privaten Bereich dieses claude.ai-Kontos
+  function cloudSaveSession() {
+    if (!cloudDb || !cloudUid) return;
+    const ref = cloudDb.doc('data/users/' + cloudUid + '/session');
+    if (session && session.keep !== false) ref.set({ accountId: session.accountId, user: session.user, admin: !!session.admin }).catch(() => {});
+    else ref.delete().catch(() => {});
   }
   async function hashPw(salt, pw) {
     const text = salt + ':' + pw;
@@ -586,6 +596,9 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
       ? 'Öffne diese Seite in Safari (nicht in der Claude-App: dort oben rechts auf das Teilen- oder Browser-Symbol und „In Safari öffnen“ wählen). In Safari dann: Teilen-Symbol (Viereck mit Pfeil) antippen, nach unten scrollen und „Zum Home-Bildschirm“ wählen.'
       : 'Öffne das Browser-Menü (⋮) und wähle „App installieren“ oder „Zum Startbildschirm hinzufügen“.';
   }
+  function canStoreHere() {
+    try { localStorage.setItem('__fx_test', '1'); localStorage.removeItem('__fx_test'); return true; } catch { return false; }
+  }
   function renderLogin() {
     const reg = loginMode === 'register' || !state.accounts.length;
     const keep = { u: $('login-user') ? $('login-user').value : '', p: $('login-pass') ? $('login-pass').value : '', p2: $('login-pass2') ? $('login-pass2').value : '', r: $('login-remember') ? $('login-remember').checked : true };
@@ -604,6 +617,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
           <button class="pchip glass ${regPerson === 'new' ? 'on' : ''}" data-action="login-person" data-k="new"><span class="plus-sm">+</span><span>Neue Person</span></button>
         </div>` : ''}
         <label class="remember"><input type="checkbox" id="login-remember" checked> Angemeldet bleiben</label>
+        ${canStoreHere() ? '' : '<p class="hint">Dieser Browser speichert auf diesem Gerät gerade nichts. Angemeldet bleibst du dann über deinen claude.ai-Account, solange du dort angemeldet bist.</p>'}
         ${loginErr ? `<p class="hint err">${esc(loginErr)}</p>` : ''}
         <button class="btn pay" data-action="login-submit">${reg ? 'Konto erstellen' : 'Anmelden'}</button>
         ${state.accounts.length ? `<button class="linkbtn center" data-action="login-toggle">${reg ? 'Ich habe schon ein Konto' : 'Neues Konto erstellen'}</button>` : ''}
@@ -617,7 +631,16 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     const locked = !account();
     document.body.classList.toggle('locked', locked);
     $('login').setAttribute('aria-hidden', String(!locked));
-    if (locked) { setView('home'); renderLogin(); }
+    if (locked) {
+      setView('home');
+      if (sessionPending) $('login').innerHTML = `<div class="lock-card glass"><span class="app-icon lock-icon">${EURO_SVG}</span><p class="hint">Anmeldung wird geprüft …</p></div>`;
+      else renderLogin();
+    }
+  }
+  function resolveSession() {
+    if (!sessionPending) return;
+    sessionPending = false;
+    updateLock();
   }
   $('login').addEventListener('keydown', (e) => { if (e.key === 'Enter') actions['login-submit'](); });
 
@@ -667,10 +690,24 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     if (document.body.classList.contains('sheet-open')) renderSettings();
   }
   (async () => {
-    if (!(window.claude && window.claude.use)) return;
-    let db = null;
+    if (sessionPending) setTimeout(resolveSession, 3000); // Notbremse, falls der Speicher nie antwortet
+    if (!(window.claude && window.claude.use)) { resolveSession(); return; }
+    let db = null, uid = null;
     try { db = await window.claude.use('db'); } catch { /* wie nicht verfügbar */ }
-    if (!db) return; // abgemeldet oder nicht verfügbar: lokal weiterarbeiten
+    try { const user = await window.claude.use('user'); uid = user ? await user.id() : null; } catch { /* keine Kennung */ }
+    if (!db) { resolveSession(); return; } // nicht verfügbar: lokal weiterarbeiten
+    cloudDb = db; cloudUid = uid || null;
+    if (uid && !account()) {
+      try {
+        const snap = await db.doc('data/users/' + uid + '/session').get();
+        const d = snap.exists ? snap.data() : null;
+        if (d && d.accountId) {
+          session = { accountId: d.accountId, user: d.user, admin: !!d.admin, keep: true };
+          try { localStorage.setItem(SKEY, JSON.stringify(session)); } catch { /* egal */ }
+        }
+      } catch { /* keine gespeicherte Anmeldung */ }
+    }
+    resolveSession();
     cloudDoc = db.doc('app/state');
     cloudDoc.onSnapshot((snap) => {
       if (!snap.exists) { // noch nichts im Online-Speicher: eigenen Stand hochladen
