@@ -43,7 +43,8 @@
     st.tx.forEach((t) => { if (!t.to) t.to = t.from === 'me' ? 'partner' : 'me'; });
     if (!['day', 'week', 'month'].includes(st.statMode)) st.statMode = 'week';
     if (!st.mac) st.mac = { stamps: 0, loanUntil: null }; // MacPunkte: Stempel und Ende der Ausleihe
-    if (!Array.isArray(st.notes)) st.notes = []; // { id, text, ts }
+    if (!Array.isArray(st.notes)) st.notes = []; // { id, text, ts, tasks: [{ id, t, done }] }
+    st.notes.forEach((n) => { if (!Array.isArray(n.tasks)) n.tasks = []; });
     if (!Array.isArray(st.accounts)) st.accounts = []; // { id, user, salt, hash, personId, names }
     st.accounts.forEach((a) => { if (!a.names || typeof a.names !== 'object') a.names = {}; }); // eigene Artikelnamen je Konto
     if (typeof st.ts !== 'number') st.ts = 0; // Zeit der letzten Änderung (für den Online-Abgleich)
@@ -489,14 +490,15 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     if (long) return d.toLocaleDateString('de-DE', { day: 'numeric', month: 'long' }) + ', ' + time;
     return today ? time : d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
   }
+  const taskInfo = (n) => { const open = (n.tasks || []).filter((t) => !t.done).length; return (n.tasks || []).length ? ` · ☐ ${open} offen` : ''; };
   function renderNotes() {
     const notes = state.notes.slice().sort((a, b) => b.ts - a.ts);
     $('note-list').innerHTML = notes.length ? `<div class="note-list">${notes.map((n) => {
       const lines = n.text.split('\n').map((l) => l.trim()).filter(Boolean);
       return `
       <button class="note glass" data-action="note-open" data-note="${n.id}">
-        <b>${esc(lines[0] || 'Neue Notiz')}</b>
-        <span><time>${noteDate(n.ts)}</time>${esc(lines.slice(1).join(' ') || 'Kein weiterer Text')}</span>
+        <b>${esc(lines[0] || ((n.tasks || []).length ? 'Aufgaben' : 'Neue Notiz'))}</b>
+        <span><time>${noteDate(n.ts)}</time>${esc(lines.slice(1).join(' ') || 'Kein weiterer Text')}${taskInfo(n)}</span>
       </button>`;
     }).join('')}</div>` : `
       <div class="soon">
@@ -504,6 +506,25 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
         <h2>Noch keine Notizen</h2>
         <p>Tippe auf das Plus, um die erste zu schreiben.</p>
         <button class="btn pay first-note" data-action="note-new">Neue Notiz</button>
+      </div>`;
+  }
+  // Aufgaben der geöffneten Notiz
+  function renderNoteTasks() {
+    const el = $('note-tasks');
+    if (!el) return;
+    const n = state.notes.find((x) => x.id === editing);
+    if (!n) { el.innerHTML = ''; return; }
+    el.innerHTML = `
+      <div class="nt-title">Aufgaben</div>
+      ${(n.tasks || []).map((t) => `
+        <div class="nt-row ${t.done ? 'done' : ''}">
+          <button class="cbtn" data-action="task-toggle" data-note="${n.id}" data-task="${t.id}" aria-label="Erledigt">${t.done ? '✓' : ''}</button>
+          <span>${esc(t.t)}</span>
+          <button class="x" data-action="task-del" data-note="${n.id}" data-task="${t.id}" aria-label="Aufgabe löschen">${X_SVG}</button>
+        </div>`).join('')}
+      <div class="nt-add">
+        <input id="task-new" placeholder="Neue Aufgabe" maxlength="80" aria-label="Neue Aufgabe">
+        <button class="paybtn" data-action="task-add" aria-label="Aufgabe hinzufügen">+</button>
       </div>`;
   }
   function renderNoteBar() {
@@ -519,22 +540,24 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     editing = id; confirmNoteDel = false;
     $('note-text').value = n.text;
     renderNoteBar();
+    renderNoteTasks();
     $('notes').classList.add('editing');
     if (focus) $('note-text').focus();
   }
   function closeNote() {
     $('note-text').blur();
-    state.notes = state.notes.filter((n) => n.id !== editing || n.text.trim()); // leere Notiz verwerfen
+    state.notes = state.notes.filter((n) => n.id !== editing || n.text.trim() || (n.tasks || []).length); // leere Notiz verwerfen
     editing = null;
     $('notes').classList.remove('editing');
     save(); renderNotes();
   }
+  $('notes').addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'task-new') { e.preventDefault(); actions['task-add'](); } });
   $('note-text').addEventListener('input', (e) => {
     const n = state.notes.find((x) => x.id === editing);
     if (!n) return;
     n.text = e.target.value; n.ts = Date.now();
     if (confirmNoteDel) confirmNoteDel = false;
-    save(); renderNoteBar();
+    save(); renderNoteBar(); renderHomeNotes();
   });
 
   /* ---------- MacPoints ---------- */
@@ -591,6 +614,28 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     if (navigator.vibrate) navigator.vibrate(10);
     commit();
   }
+  // Startbildschirm: die letzten Notizen mit ihren offenen Aufgaben (abhakbar)
+  function renderHomeNotes() {
+    const el = $('home-notes');
+    if (!el) return;
+    const list = state.notes.filter((n) => n.text.trim() || (n.tasks || []).length).slice().sort((a, b) => b.ts - a.ts).slice(0, 3);
+    if (!list.length) { el.innerHTML = ''; return; }
+    el.innerHTML = `
+      <div class="home-notes glass">
+        <div class="hn-title">Notizen <button class="hn-more" data-action="open-notes">Alle ›</button></div>
+        ${list.map((n) => {
+          const lines = n.text.split('\n').map((l) => l.trim()).filter(Boolean);
+          const open = (n.tasks || []).filter((t) => !t.done);
+          return `
+          <div class="hn-note">
+            <b>${esc(lines[0] || ((n.tasks || []).length ? 'Aufgaben' : 'Neue Notiz'))}</b>
+            ${open.length ? open.slice(0, 6).map((t) => `
+            <button class="hn-task" data-action="task-toggle" data-note="${n.id}" data-task="${t.id}"><span class="cbtn sm"></span><span>${esc(t.t)}</span></button>`).join('') : '<small>Keine offenen Aufgaben</small>'}
+          </div>`;
+        }).join('')}
+      </div>`;
+  }
+
   // Startbildschirm: für Juna die offenen Anfragen direkt mit Erhalten/Verwehren
   function renderHomeReq() {
     const el = $('home-req');
@@ -832,7 +877,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     }, () => setCloudStatus('err'));
   })();
 
-  function renderMain() { renderHome(); renderAccounts(); renderItems(); renderStats(); renderHistory(); renderInventory(); renderMac(); renderDock(); renderHomeReq(); }
+  function renderMain() { renderHome(); renderAccounts(); renderItems(); renderStats(); renderHistory(); renderInventory(); renderMac(); renderDock(); renderHomeReq(); renderHomeNotes(); }
   function commit() { save(); renderMain(); }
 
   /* ---------- Aktionen ---------- */
@@ -940,7 +985,30 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     'inv-eat': (el, id) => invUse(el, id, 'eat'),
     'inv-ret': (el, id) => invUse(el, id, 'ret'),
     undo: (el) => { const id = el.closest('[data-tx]').dataset.tx; state.tx = state.tx.filter((t) => t.id !== id); commit(); },
-    'note-new': () => { const n = { id: uid(), text: '', ts: Date.now() }; state.notes.push(n); openNote(n.id, true); },
+    'open-notes': () => setView('notes'),
+    'task-toggle': (el) => {
+      const n = state.notes.find((x) => x.id === el.dataset.note);
+      const t = n && (n.tasks || []).find((x) => x.id === el.dataset.task);
+      if (!t) return;
+      t.done = !t.done; n.ts = Date.now();
+      save(); renderNotes(); renderNoteTasks(); renderHomeNotes();
+    },
+    'task-add': () => {
+      const n = state.notes.find((x) => x.id === editing), i = $('task-new');
+      const v = i ? i.value.trim() : '';
+      if (!n || !v) { if (i) i.focus(); return; }
+      n.tasks = n.tasks || [];
+      n.tasks.push({ id: uid(), t: v, done: false }); n.ts = Date.now();
+      save(); renderNotes(); renderNoteTasks(); renderHomeNotes();
+      const j = $('task-new'); if (j) j.focus();
+    },
+    'task-del': (el) => {
+      const n = state.notes.find((x) => x.id === el.dataset.note);
+      if (!n) return;
+      n.tasks = (n.tasks || []).filter((t) => t.id !== el.dataset.task); n.ts = Date.now();
+      save(); renderNotes(); renderNoteTasks(); renderHomeNotes();
+    },
+    'note-new': () => { const n = { id: uid(), text: '', ts: Date.now(), tasks: [] }; state.notes.push(n); openNote(n.id, true); },
     'note-open': (el) => openNote(el.dataset.note),
     'note-back': closeNote,
     'note-del': () => {
