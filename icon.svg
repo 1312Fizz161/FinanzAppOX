@@ -1,18 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#63f5aa"/>
-      <stop offset=".55" stop-color="#18bd7c"/>
-      <stop offset="1" stop-color="#0b8a5f"/>
-    </linearGradient>
-    <radialGradient id="h" cx=".28" cy=".18" r=".85">
-      <stop offset="0" stop-color="#ffffff" stop-opacity=".30"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    <radialGradient id="bg" cx=".5" cy=".42" r=".75">
+      <stop offset="0" stop-color="#2b2b2b"/>
+      <stop offset=".6" stop-color="#0d0d0d"/>
+      <stop offset="1" stop-color="#000000"/>
     </radialGradient>
+    <linearGradient id="t" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#bdbdbd"/>
+    </linearGradient>
   </defs>
-  <rect width="1024" height="1024" fill="url(#g)"/>
-  <rect width="1024" height="1024" fill="url(#h)"/>
-  <g transform="translate(205 205) scale(25.6)" fill="none" stroke="#ffffff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M17.5 6.2A6.6 6.6 0 0 0 7.2 9.5M17.5 17.8A6.6 6.6 0 0 1 7.2 14.5M4.5 10h8.5M4.5 14h7"/>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <circle cx="512" cy="512" r="330" fill="none" stroke="#ffffff" stroke-width="22" stroke-linecap="round" stroke-dasharray="1773.5 300" transform="rotate(-70 512 512)"/>
+  <g transform="translate(16 18)" fill="#000000" opacity=".55">
+    <rect x="330" y="330" width="364" height="80" rx="14"/>
+    <rect x="466" y="330" width="92" height="364" rx="14"/>
+  </g>
+  <g fill="url(#t)">
+    <rect x="330" y="330" width="364" height="80" rx="14"/>
+    <rect x="466" y="330" width="92" height="364" rx="14"/>
   </g>
 </svg>
