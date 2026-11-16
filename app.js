@@ -365,7 +365,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
       }
       const it = byId[t.itemId];
       const pend = t.st === 'pending', denied = t.st === 'denied';
-      const text = t.type === 'buy' ? `${P} kauft ${t.qty}× ${esc(itemName(it))} bei ${R}${pend ? ' · Juna bestätigt noch' : denied ? ' · von Juna verwehrt' : ''}`
+      const text = t.type === 'buy' ? `${P} kauft ${t.qty}× ${esc(itemName(it))} bei ${R}${pend ? ` · ${R} bestätigt noch` : denied ? ` · von ${R} verwehrt` : ''}`
         : t.type === 'loan' ? `${P} leiht ${t.qty}× ${esc(itemName(it))} bei ${R}`
         : t.type === 'settle' ? `${P} zahlt ${R} ${sum} für Geliehenes`
         : t.type === 'eat' ? `${P} konsumiert ${t.qty}× ${esc(itemName(it))}`
@@ -581,13 +581,13 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
   let macWasOver = null;
   /* ---------- Anfragen (für Juna statt MacPoints) ---------- */
   const INBOX_SVG = '<svg viewBox="0 0 24 24"><path d="M3 13l2.5-7h13L21 13v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 13h5l1 2h6l1-2h5"/></svg>';
-  const requestsMode = () => myPerson() === JUNA;
+  const requestsMode = () => !!myPerson(); // jeder angemeldete Account hat den Anfragen-Tab
   function renderRequests() {
     $('mac-title').textContent = 'Anfragen';
     const byId = Object.fromEntries(state.items.map((it) => [it.id, it]));
     const fmt = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-    const open = state.tx.filter((t) => t.st === 'pending' && t.to === JUNA && byId[t.itemId] && person(t.from)).slice().reverse();
-    const done = state.tx.filter((t) => (t.st === 'ok' || t.st === 'denied') && t.to === JUNA && t.type === 'buy' && byId[t.itemId] && person(t.from)).slice().reverse().slice(0, 20);
+    const open = state.tx.filter((t) => t.st === 'pending' && t.to === myPerson() && byId[t.itemId] && person(t.from)).slice().reverse();
+    const done = state.tx.filter((t) => (t.st === 'ok' || t.st === 'denied') && t.to === myPerson() && t.type === 'buy' && byId[t.itemId] && person(t.from)).slice().reverse().slice(0, 20);
     const row = (t, extra, tag) => {
       const it = byId[t.itemId];
       return `
@@ -616,7 +616,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     if (!requestsMode()) return;
     const id = el.closest('[data-tx]').dataset.tx;
     const t = state.tx.find((x) => x.id === id);
-    if (!t || t.st !== 'pending' || t.to !== JUNA) return;
+    if (!t || t.st !== 'pending' || t.to !== myPerson()) return;
     if (st === 'denied' && held(t.itemId, t.from, t.to) < t.qty) {
       reqMsg = `${who(t.from)} hat es schon konsumiert. Verwehren geht nicht mehr.`;
       renderMain();
@@ -654,7 +654,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     const el = $('home-req');
     if (!el) return;
     const byId = Object.fromEntries(state.items.map((it) => [it.id, it]));
-    const open = requestsMode() ? state.tx.filter((t) => t.st === 'pending' && t.to === JUNA && byId[t.itemId] && person(t.from)).slice().reverse() : [];
+    const open = requestsMode() ? state.tx.filter((t) => t.st === 'pending' && t.to === myPerson() && byId[t.itemId] && person(t.from)).slice().reverse() : [];
     if (!open.length && !reqMsg) { el.innerHTML = ''; return; }
     el.innerHTML = `
       <div class="home-req glass">
@@ -676,7 +676,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     const macBtn = document.querySelector('[data-app="mac"]');
     if (macBtn) macBtn.hidden = !j;
     if (!j && document.body.dataset.view === 'mac') setView('home');
-    const n = j ? state.tx.filter((t) => t.st === 'pending' && t.to === JUNA).length : 0;
+    const n = j ? state.tx.filter((t) => t.st === 'pending' && t.to === myPerson()).length : 0;
     const b = $('req-badge');
     if (b) { b.textContent = n || ''; b.classList.toggle('on', n > 0); }
   }
@@ -915,7 +915,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     const it = state.items.find((i) => i.id === itemId);
     if (!it) return;
     const q = qty[itemId] || 1;
-    const needsOk = type === 'buy' && seller() === JUNA; // Käufe bei Juna braucht ihre Bestätigung
+    const needsOk = type === 'buy'; // Käufe brauchen die Bestätigung des Verkäufers
     state.tx.push({ id: uid(), itemId, from: buyer(), to: seller(), type, qty: q, price: unitPrice(it, q), ts: Date.now(), ...(needsOk ? { st: 'pending' } : {}) });
     qty[itemId] = 1;
     commit();
