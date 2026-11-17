@@ -97,6 +97,18 @@
     <div class="scroll" id="inv-body"></div>
   </main>
 
+  <!-- Admin (nur für den Admin sichtbar) -->
+  <main id="adm" class="screen appscreen" aria-hidden="true">
+    <header class="bar">
+      <button class="round glass" data-action="close" aria-label="Zurück">
+        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <h1>Admin</h1>
+      <span class="round"></span>
+    </header>
+    <div class="scroll" id="adm-body"></div>
+  </main>
+
   <!-- Dock -->
   <nav class="dock glass" aria-label="Apps">
     <button class="app" data-action="toggle" data-app="manager" aria-label="Finanz Manager">
@@ -114,6 +126,10 @@
     </button>
     <button class="app" data-action="toggle" data-app="inv" aria-label="Inventar">
       <span class="app-icon inv"><svg viewBox="0 0 24 24"><path d="M8.5 7V6a3.5 3.5 0 0 1 7 0v1"/><rect x="5" y="7" width="14" height="14" rx="3.5"/><path d="M9 13h6v3.5H9z"/></svg></span>
+      <span class="dot"></span>
+    </button>
+    <button class="app" data-action="toggle" data-app="adm" aria-label="Admin" hidden>
+      <span class="app-icon adm"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
       <span class="dot"></span>
     </button>
   </nav>
