@@ -15,6 +15,7 @@
   --field: rgba(0, 0, 0, .25); --dock: rgba(255, 255, 255, .11); --sheet: rgba(28, 28, 44, .86); --lockbg: rgba(8, 8, 18, .45);
   --clock1: #fff; --clock2: rgba(255, 255, 255, .72);
   --pay1: #4be39a; --pay2: #10a56c; --payText: #04251a;
+  --loan1: #ffd98a; --loan2: #f5a623; --loanText: #3a2600; --loanGlow: rgba(245, 166, 35, .9);
   --radius: 26px;
   --ease: cubic-bezier(.32, .72, 0, 1);
   --safe-b: env(safe-area-inset-bottom, 0px);
@@ -369,7 +370,7 @@ body.sheet-open .sheet { transform: none; }
 .loan .info { margin-top: 12px; }
 
 /* ---------- Leihen ---------- */
-.btn.loan { background: linear-gradient(150deg, #ffd98a, #f5a623); color: #3a2600; box-shadow: 0 8px 18px -10px rgba(245, 166, 35, .9); }
+.btn.loan { background: linear-gradient(150deg, var(--loan1), var(--loan2)); color: var(--loanText); box-shadow: 0 8px 18px -10px var(--loanGlow); }
 .debts { display: grid; gap: 10px; margin-top: 10px; }
 .debt { display: flex; align-items: center; gap: 12px; border-radius: 20px; padding: 10px 12px; }
 .debt .emoji { width: 42px; height: 42px; border-radius: 13px; font-size: 21px; flex: none; }
