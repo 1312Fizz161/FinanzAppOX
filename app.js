@@ -47,6 +47,8 @@
     st.notes.forEach((n) => { if (!Array.isArray(n.tasks)) n.tasks = []; });
     if (!Array.isArray(st.accounts)) st.accounts = []; // { id, user, salt, hash, personId, names }
     st.accounts.forEach((a) => { if (!a.names || typeof a.names !== 'object') a.names = {}; }); // eigene Artikelnamen je Konto
+    st.prices = st.prices && typeof st.prices === 'object' ? st.prices : {};
+    st.accounts.forEach((a) => { if (a.prices && a.personId) st.prices[a.personId] = Object.assign({}, a.prices, st.prices[a.personId] || {}); delete a.prices; });
     if (typeof st.ts !== 'number') st.ts = 0; // Zeit der letzten Änderung (für den Online-Abgleich)
     return st;
   }
@@ -160,10 +162,11 @@
   // Geliehene, noch nicht bezahlte (und nicht zurückgegebene) Stücke von a bei b
   const debtUnits = (itemId, a, b) => sumTx(itemId, a, 'loan', b) - sumTx(itemId, a, 'settle', b) - sumTx(itemId, a, 'retl', b);
   // Stückpreis beim Kauf von q auf einmal (Mengenrabatt ab bulkQty Stück)
-  // Preise gehören dem Verkäufer: jeder Account setzt seine eigenen; ohne eigene gelten die Standardpreise
+  // Preise gehören dem Verkäufer: der Admin setzt sie pro Person; ohne eigene gelten die Standardpreise
+  let pricePick = null;
+  const pricePerson = () => (person(pricePick) ? pricePick : (myPerson() || state.people[0].id));
   const priceFor = (it, sellerId) => {
-    const a = sellerId && state.accounts.find((x) => x.personId === sellerId);
-    const o = (a && a.prices && a.prices[it.id]) || {};
+    const o = (sellerId && state.prices && state.prices[sellerId] && state.prices[sellerId][it.id]) || {};
     return {
       price: o.p != null ? o.p : it.price,
       bulkQty: o.bq !== undefined ? o.bq : it.bulkQty,
@@ -428,15 +431,18 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
         </div>`).join('')}
       </div>
       <p class="hint">Nur du siehst diese Namen. Leer lassen = Standardname.</p>` : ''}
-      ${account() ? `
-      <div class="group-title">Meine Preise</div>
-      ${state.items.map((it) => { const pr = priceFor(it, myPerson()); return `
+      ${admin ? `
+      <div class="group-title">Preise</div>
+      <div class="pick in-sheet">${state.people.map((p) => `
+        <button class="pchip glass ${p.id === pricePerson() ? 'on' : ''}" data-action="price-person" data-k="${p.id}">${avatar(p.id, 'sm')}<span>${esc(who(p.id))}</span></button>`).join('')}
+      </div>
+      ${state.items.map((it) => { const pr = priceFor(it, pricePerson()); return `
       <div class="group" style="margin-bottom:10px">
-        <div class="field"><div class="emoji">${esc(it.emoji)}</div><span class="pname">${esc(itemName(it))}</span></div>
-        <div class="field"><label>Preis</label><input class="num" data-myprice="${it.id}" data-f="p" inputmode="decimal" value="${String(pr.price).replace('.', ',')}" aria-label="Preis für ${esc(itemName(it))}"><span class="unit">€</span></div>
-        <div class="field bulk"><label>Rabatt</label><span class="unit">ab</span><input class="num tiny" data-myprice="${it.id}" data-f="bq" inputmode="numeric" value="${pr.bulkQty || ''}" placeholder="–" aria-label="Rabatt ab Stück"><span class="unit">Stück, je</span><input class="num" data-myprice="${it.id}" data-f="bp" inputmode="decimal" value="${pr.bulkPrice != null ? String(pr.bulkPrice).replace('.', ',') : ''}" placeholder="–" aria-label="Rabattpreis"><span class="unit">€</span></div>
+        <div class="field"><div class="emoji">${esc(it.emoji)}</div><span class="pname">${esc(it.name)}</span></div>
+        <div class="field"><label>Preis</label><input class="num" data-pprice="${it.id}" data-f="p" inputmode="decimal" value="${String(pr.price).replace('.', ',')}" aria-label="Preis für ${esc(it.name)}"><span class="unit">€</span></div>
+        <div class="field bulk"><label>Rabatt</label><span class="unit">ab</span><input class="num tiny" data-pprice="${it.id}" data-f="bq" inputmode="numeric" value="${pr.bulkQty || ''}" placeholder="–" aria-label="Rabatt ab Stück"><span class="unit">Stück, je</span><input class="num" data-pprice="${it.id}" data-f="bp" inputmode="decimal" value="${pr.bulkPrice != null ? String(pr.bulkPrice).replace('.', ',') : ''}" placeholder="–" aria-label="Rabattpreis"><span class="unit">€</span></div>
       </div>`; }).join('')}
-      <p class="hint">Diese Preise gelten, wenn andere bei dir kaufen. Rabatt-Felder leer lassen = kein Rabatt.</p>` : ''}
+      <p class="hint">Diese Preise gelten, wenn andere bei dieser Person kaufen. Rabatt-Felder leer lassen = kein Rabatt.</p>` : ''}
       <div class="group-title">App</div>
       <div class="group">
         <button class="linkbtn" data-action="install">Zum Home-Bildschirm hinzufügen</button>
@@ -1026,6 +1032,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     'inv-eat': (el, id) => invUse(el, id, 'eat'),
     'inv-ret': (el, id) => invUse(el, id, 'ret'),
     undo: (el) => { const id = el.closest('[data-tx]').dataset.tx; state.tx = state.tx.filter((t) => t.id !== id); commit(); },
+    'price-person': (el) => { pricePick = el.dataset.k; renderSettings(); },
     'open-notes': () => setView('notes'),
     'task-toggle': (el) => {
       const n = state.notes.find((x) => x.id === el.dataset.note);
@@ -1228,18 +1235,19 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
       commit();
       return;
     }
-    if (e.target.dataset.myprice !== undefined) { // eigene Preise: gelten, wenn andere bei diesem Account kaufen
-      const a = account();
-      if (!a) return;
-      a.prices = a.prices || {};
-      const id = e.target.dataset.myprice, f = e.target.dataset.f;
-      const cur = a.prices[id] || {};
+    if (e.target.dataset.pprice !== undefined) { // Preise setzt nur der Admin, pro Person
+      if (!isAdmin()) return;
+      const pid = pricePerson();
+      state.prices = state.prices || {};
+      state.prices[pid] = state.prices[pid] || {};
+      const id = e.target.dataset.pprice, f = e.target.dataset.f;
+      const cur = state.prices[pid][id] || {};
       const txt = e.target.value.trim().replace(',', '.');
       const num = parseFloat(txt);
       if (f === 'p') { if (num >= 0) cur.p = round2(num); else delete cur.p; }
       if (f === 'bq') { const n = parseInt(txt, 10); cur.bq = n >= 2 ? n : null; }
       if (f === 'bp') { cur.bp = num >= 0 ? round2(num) : null; }
-      a.prices[id] = cur;
+      state.prices[pid][id] = cur;
       commit();
       return;
     }
