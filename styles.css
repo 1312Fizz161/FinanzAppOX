@@ -552,3 +552,9 @@ body.locked .dock { display: none; }
 .idea-st.nicht { color: var(--red); }
 .idea-pick { padding: 10px 14px 12px; gap: 6px; }
 .idea-pick .pchip { font-size: 13px; padding: 4px 11px; }
+
+/* ---------- Nachrichten auf dem Startbildschirm ---------- */
+.home-msg { width: 100%; max-width: 360px; margin-top: 14px; padding: 12px 14px; border-radius: 20px; }
+.hm-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid rgba(255, 255, 255, .08); }
+.hm-row:first-of-type { border-top: 0; }
+.hm-row span { flex: 1; min-width: 0; font-size: 15px; overflow-wrap: anywhere; }
