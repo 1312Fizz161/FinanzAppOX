@@ -149,7 +149,8 @@
   const buyer = () => myPerson() || (person(state.buyer) ? state.buyer : state.people[0].id);
   const seller = () => { const b = buyer(); return person(state.seller) && state.seller !== b ? state.seller : state.people.find((p) => p.id !== b).id; };
   // Verwehrte Käufe gelten als nie passiert (Geld zurück, kein Inventar). Offene Käufe zählen schon.
-  const liveTx = () => state.tx.filter((t) => t.st !== 'denied');
+  // Verwehrte Käufe und Leihen gelten als nie passiert; offene Leihen zählen erst nach der Bestätigung
+  const liveTx = () => state.tx.filter((t) => t.st !== 'denied' && !(t.type === 'loan' && t.st === 'pending'));
   const JUNA = 'partner'; // die Person, die Käufe bestätigt
   const sumTx = (itemId, from, type, to) => liveTx().reduce((sum, t) => sum + (t.itemId === itemId && t.from === from && t.type === type && (!to || t.to === to) ? t.qty : 0), 0);
   // Stücke im Inventar einer Person: gekauft, weder konsumiert noch zurückgegeben (optional nur von einem Verkäufer)
@@ -376,7 +377,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
       const it = byId[t.itemId];
       const pend = t.st === 'pending', denied = t.st === 'denied';
       const text = t.type === 'buy' ? `${P} kauft ${t.qty}× ${esc(itemName(it))} bei ${R}${pend ? ` · ${R} bestätigt noch` : denied ? ` · von ${R} verwehrt` : ''}`
-        : t.type === 'loan' ? `${P} leiht ${t.qty}× ${esc(itemName(it))} bei ${R}`
+        : t.type === 'loan' ? `${P} leiht ${t.qty}× ${esc(itemName(it))} bei ${R}${pend ? ` · ${R} bestätigt noch` : denied ? ` · von ${R} verwehrt` : ''}`
         : t.type === 'settle' ? `${P} zahlt ${R} ${sum} für Geliehenes`
         : t.type === 'eat' ? `${P} konsumiert ${t.qty}× ${esc(itemName(it))}`
         : t.type === 'retl' ? `${P} gibt ${R} ${t.qty}× ${esc(itemName(it))} zurück (war geliehen)`
@@ -606,14 +607,14 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     const byId = Object.fromEntries(state.items.map((it) => [it.id, it]));
     const fmt = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
     const open = state.tx.filter((t) => t.st === 'pending' && t.to === myPerson() && byId[t.itemId] && person(t.from)).slice().reverse();
-    const done = state.tx.filter((t) => (t.st === 'ok' || t.st === 'denied') && t.to === myPerson() && t.type === 'buy' && byId[t.itemId] && person(t.from)).slice().reverse().slice(0, 20);
+    const done = state.tx.filter((t) => (t.st === 'ok' || t.st === 'denied') && t.to === myPerson() && (t.type === 'buy' || t.type === 'loan') && byId[t.itemId] && person(t.from)).slice().reverse().slice(0, 20);
     const row = (t, extra, tag) => {
       const it = byId[t.itemId];
       return `
         <div class="req glass" data-tx="${t.id}">
           <div class="req-top">
             <div class="emoji">${esc(it.emoji)}</div>
-            <div class="txt"><b>${esc(who(t.from))} kauft ${t.qty}× ${esc(itemName(it))}</b><small>${fmt.format(new Date(t.ts))}${tag ? ` · ${tag}` : ''}</small></div>
+            <div class="txt"><b>${esc(who(t.from))} ${t.type === 'loan' ? 'leiht' : 'kauft'} ${t.qty}× ${esc(itemName(it))}</b><small>${fmt.format(new Date(t.ts))}${tag ? ` · ${tag}` : ''}</small></div>
             <div class="val ${t.st === 'denied' ? 'dim' : ''}">${money(t.qty * t.price)}</div>
           </div>
           ${extra}
@@ -624,7 +625,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
       <div class="section-title first"><span>Offen</span><small>${open.length}</small></div>
       ${open.length ? `<div class="req-list">${open.map((t) => row(t, `
           <div class="req-btns">
-            <button class="btn pay" data-action="req-ok">Erhalten<small>hat er bekommen</small></button>
+            <button class="btn pay" data-action="req-ok">${t.type === 'loan' ? 'Verliehen' : 'Erhalten'}<small>${t.type === 'loan' ? 'gebe ich her' : 'hat er bekommen'}</small></button>
             <button class="btn use" data-action="req-no">Verwehren<small>Geld geht zurück</small></button>
           </div>`, '')).join('')}</div>` : '<div class="empty">Gerade keine offenen Anfragen.</div>'}
       <div class="section-title"><span>Bearbeitet</span></div>
@@ -636,7 +637,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     const id = el.closest('[data-tx]').dataset.tx;
     const t = state.tx.find((x) => x.id === id);
     if (!t || t.st !== 'pending' || t.to !== myPerson()) return;
-    if (st === 'denied' && held(t.itemId, t.from, t.to) < t.qty) {
+    if (st === 'denied' && t.type === 'buy' && held(t.itemId, t.from, t.to) < t.qty) {
       reqMsg = `${who(t.from)} hat es schon konsumiert. Verwehren geht nicht mehr.`;
       renderMain();
       return;
@@ -681,8 +682,8 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
         ${reqMsg ? `<p class="hr-msg">${esc(reqMsg)}</p>` : ''}
         ${open.map((t) => `
         <div class="hr-row" data-tx="${t.id}">
-          <div class="hr-txt"><b>${esc(who(t.from))} kauft ${t.qty}× ${esc(itemName(byId[t.itemId]))}</b><small>${money(t.qty * t.price)}</small></div>
-          <button class="hr-btn ok" data-action="req-ok">Erhalten</button>
+          <div class="hr-txt"><b>${esc(who(t.from))} ${t.type === 'loan' ? 'leiht' : 'kauft'} ${t.qty}× ${esc(itemName(byId[t.itemId]))}</b><small>${money(t.qty * t.price)}</small></div>
+          <button class="hr-btn ok" data-action="req-ok">${t.type === 'loan' ? 'Verleihen' : 'Erhalten'}</button>
           <button class="hr-btn no" data-action="req-no">Verwehren</button>
         </div>`).join('')}
       </div>`;
@@ -934,7 +935,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     const it = state.items.find((i) => i.id === itemId);
     if (!it) return;
     const q = qty[itemId] || 1;
-    const needsOk = type === 'buy'; // Käufe brauchen die Bestätigung des Verkäufers
+    const needsOk = type === 'buy' || type === 'loan'; // Käufe und Leihen brauchen die Bestätigung des Verkäufers
     state.tx.push({ id: uid(), itemId, from: buyer(), to: seller(), type, qty: q, price: unitPrice(it, q, seller()), ts: Date.now(), ...(needsOk ? { st: 'pending' } : {}) });
     qty[itemId] = 1;
     commit();
