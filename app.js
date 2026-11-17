@@ -443,6 +443,11 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
         <div class="field bulk"><label>Rabatt</label><span class="unit">ab</span><input class="num tiny" data-pprice="${it.id}" data-f="bq" inputmode="numeric" value="${pr.bulkQty || ''}" placeholder="–" aria-label="Rabatt ab Stück"><span class="unit">Stück, je</span><input class="num" data-pprice="${it.id}" data-f="bp" inputmode="decimal" value="${pr.bulkPrice != null ? String(pr.bulkPrice).replace('.', ',') : ''}" placeholder="–" aria-label="Rabattpreis"><span class="unit">€</span></div>
       </div>`; }).join('')}
       <p class="hint">Diese Preise gelten, wenn andere bei dieser Person kaufen. Rabatt-Felder leer lassen = kein Rabatt.</p>` : ''}
+      ${account() ? `
+      <div class="group-title">Design</div>
+      <div class="pick in-sheet">${Object.keys(THEMES).map((k) => `
+        <button class="pchip glass ${((account() && account().theme) || 'std') === k ? 'on' : ''}" data-action="theme-set" data-k="${k}"><span class="tdot" style="background:linear-gradient(135deg, ${THEMES[k].dot[0]}, ${THEMES[k].dot[1]})"></span><span>${THEMES[k].name}</span></button>`).join('')}
+      </div>` : ''}
       <div class="group-title">App</div>
       <div class="group">
         <button class="linkbtn" data-action="install">Zum Home-Bildschirm hinzufügen</button>
@@ -924,7 +929,24 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     resolveSession();
   })();
 
-  function renderMain() { renderHome(); renderAccounts(); renderItems(); renderStats(); renderHistory(); renderInventory(); renderMac(); renderDock(); renderHomeReq(); renderHomeNotes(); }
+  /* ---------- Designs (pro Account) ---------- */
+  const THEMES = {
+    std: { name: 'Standard', dot: ['#5ef0a0', '#7c8cff'], scheme: 'dark', v: { '--w1': '#5b4bff', '--w2': '#ff5fa2', '--w3': '#14c8a8', '--wallbg': 'radial-gradient(120% 80% at 50% 0%, #1a1740 0%, #0b0b14 60%)', '--bg': '#0b0b14', '--text': '#f5f5fa', '--muted': 'rgba(235, 235, 245, .62)', '--faint': 'rgba(235, 235, 245, .34)', '--glass': 'rgba(255, 255, 255, .08)', '--glass-strong': 'rgba(255, 255, 255, .13)', '--stroke': 'rgba(255, 255, 255, .14)', '--green': '#34d399', '--red': '#ff6b6b', '--accent': '#7c8cff', '--field': 'rgba(0, 0, 0, .25)', '--dock': 'rgba(255, 255, 255, .11)', '--sheet': 'rgba(28, 28, 44, .86)', '--lockbg': 'rgba(8, 8, 18, .45)', '--clock1': '#fff', '--clock2': 'rgba(255, 255, 255, .72)', '--pay1': '#4be39a', '--pay2': '#10a56c', '--payText': '#04251a' } },
+    pink: { name: 'Pink', dot: ['#ff8fc7', '#ff4f9a'], scheme: 'dark', v: { '--w1': '#ff4f9a', '--w2': '#ff8fc7', '--w3': '#c2185b', '--wallbg': 'radial-gradient(120% 80% at 50% 0%, #3d0f2a 0%, #1a0712 60%)', '--bg': '#1a0712', '--text': '#fff5fa', '--muted': 'rgba(255, 240, 248, .66)', '--faint': 'rgba(255, 240, 248, .36)', '--glass': 'rgba(255, 255, 255, .09)', '--glass-strong': 'rgba(255, 255, 255, .14)', '--stroke': 'rgba(255, 200, 225, .18)', '--green': '#ff9ccc', '--red': '#ff5f7e', '--accent': '#ff8fc7', '--field': 'rgba(0, 0, 0, .25)', '--dock': 'rgba(255, 255, 255, .12)', '--sheet': 'rgba(48, 14, 36, .88)', '--lockbg': 'rgba(26, 7, 18, .5)', '--clock1': '#fff', '--clock2': 'rgba(255, 255, 255, .75)', '--pay1': '#ff8fc7', '--pay2': '#ff4f9a', '--payText': '#2b0015' } },
+    lila: { name: 'Lila', dot: ['#c9a2ff', '#7b3fe4'], scheme: 'dark', v: { '--w1': '#8b5cf6', '--w2': '#c084fc', '--w3': '#4c1d95', '--wallbg': 'radial-gradient(120% 80% at 50% 0%, #2e1a55 0%, #120a1f 60%)', '--bg': '#120a1f', '--text': '#f8f5ff', '--muted': 'rgba(240, 235, 255, .64)', '--faint': 'rgba(240, 235, 255, .36)', '--glass': 'rgba(255, 255, 255, .08)', '--glass-strong': 'rgba(255, 255, 255, .13)', '--stroke': 'rgba(220, 200, 255, .16)', '--green': '#b794f4', '--red': '#ff7aa8', '--accent': '#c9a2ff', '--field': 'rgba(0, 0, 0, .25)', '--dock': 'rgba(255, 255, 255, .11)', '--sheet': 'rgba(30, 18, 52, .88)', '--lockbg': 'rgba(18, 10, 31, .5)', '--clock1': '#fff', '--clock2': 'rgba(255, 255, 255, .72)', '--pay1': '#c9a2ff', '--pay2': '#8b5cf6', '--payText': '#1b0a33' } },
+    schwarz: { name: 'Schwarz', dot: ['#ffffff', '#555555'], scheme: 'dark', v: { '--w1': '#1f1f1f', '--w2': '#2a2a2a', '--w3': '#111111', '--wallbg': 'radial-gradient(120% 80% at 50% 0%, #1c1c1c 0%, #000 65%)', '--bg': '#000000', '--text': '#ffffff', '--muted': 'rgba(255, 255, 255, .6)', '--faint': 'rgba(255, 255, 255, .34)', '--glass': 'rgba(255, 255, 255, .06)', '--glass-strong': 'rgba(255, 255, 255, .1)', '--stroke': 'rgba(255, 255, 255, .16)', '--green': '#ffffff', '--red': '#ff6b6b', '--accent': '#ffffff', '--field': 'rgba(255, 255, 255, .08)', '--dock': 'rgba(255, 255, 255, .08)', '--sheet': 'rgba(20, 20, 20, .92)', '--lockbg': 'rgba(0, 0, 0, .6)', '--clock1': '#fff', '--clock2': '#bdbdbd', '--pay1': '#ffffff', '--pay2': '#cfcfcf', '--payText': '#000000' } },
+    weiss: { name: 'Weiß', dot: ['#ffffff', '#d0d0d8'], scheme: 'light', v: { '--w1': '#ffffff', '--w2': '#e4e4ea', '--w3': '#d7d7e0', '--wallbg': 'radial-gradient(120% 80% at 50% 0%, #ffffff 0%, #e9ebf1 70%)', '--bg': '#eef0f5', '--text': '#111118', '--muted': 'rgba(17, 17, 24, .62)', '--faint': 'rgba(17, 17, 24, .42)', '--glass': 'rgba(255, 255, 255, .62)', '--glass-strong': 'rgba(255, 255, 255, .85)', '--stroke': 'rgba(0, 0, 0, .1)', '--green': '#0f9d6a', '--red': '#d23c3c', '--accent': '#111111', '--field': 'rgba(0, 0, 0, .06)', '--dock': 'rgba(255, 255, 255, .78)', '--sheet': 'rgba(250, 250, 252, .94)', '--lockbg': 'rgba(240, 242, 247, .6)', '--clock1': '#111118', '--clock2': '#555560', '--pay1': '#111111', '--pay2': '#333333', '--payText': '#ffffff' } },
+    ozean: { name: 'Ozean', dot: ['#7fe3ff', '#1e9bd8'], scheme: 'dark', v: { '--w1': '#0ea5e9', '--w2': '#22d3ee', '--w3': '#1e40af', '--wallbg': 'radial-gradient(120% 80% at 50% 0%, #0b3a5c 0%, #041320 60%)', '--bg': '#041320', '--text': '#eefbff', '--muted': 'rgba(230, 246, 255, .64)', '--faint': 'rgba(230, 246, 255, .36)', '--glass': 'rgba(255, 255, 255, .08)', '--glass-strong': 'rgba(255, 255, 255, .13)', '--stroke': 'rgba(160, 220, 255, .16)', '--green': '#5eead4', '--red': '#fb7185', '--accent': '#7fe3ff', '--field': 'rgba(0, 0, 0, .25)', '--dock': 'rgba(255, 255, 255, .11)', '--sheet': 'rgba(8, 36, 58, .88)', '--lockbg': 'rgba(4, 19, 32, .5)', '--clock1': '#fff', '--clock2': 'rgba(255, 255, 255, .72)', '--pay1': '#7fe3ff', '--pay2': '#1e9bd8', '--payText': '#03202e' } },
+  };
+  function applyTheme() {
+    const a = account();
+    const t = THEMES[(a && a.theme) || 'std'] || THEMES.std;
+    const st = document.documentElement.style;
+    Object.keys(t.v).forEach((k) => st.setProperty(k, t.v[k]));
+    st.colorScheme = t.scheme;
+  }
+
+  function renderMain() { renderHome(); renderAccounts(); renderItems(); renderStats(); renderHistory(); renderInventory(); renderMac(); renderDock(); renderHomeReq(); renderHomeNotes(); applyTheme(); }
   function commit() { save(); renderMain(); }
 
   /* ---------- Aktionen ---------- */
@@ -1032,6 +1054,7 @@ ${!myPerson() || isAdmin() || p.id === myPerson() ? `<button class="addcash" dat
     'inv-eat': (el, id) => invUse(el, id, 'eat'),
     'inv-ret': (el, id) => invUse(el, id, 'ret'),
     undo: (el) => { const id = el.closest('[data-tx]').dataset.tx; state.tx = state.tx.filter((t) => t.id !== id); commit(); },
+    'theme-set': (el) => { const a = account(); if (!a) return; a.theme = el.dataset.k; commit(); renderSettings(); },
     'price-person': (el) => { pricePick = el.dataset.k; renderSettings(); },
     'open-notes': () => setView('notes'),
     'task-toggle': (el) => {
