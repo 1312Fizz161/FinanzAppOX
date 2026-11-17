@@ -45,3 +45,22 @@ Seite in Safari (iPhone) oder Chrome (Android) öffnen → Teilen → **Zum Home
 ## Lokal ausprobieren
 
 `index.html` im Browser öffnen. Ohne Supabase-Verbindung funktioniert die App nur lokal, und dort werden keine Daten geteilt.
+
+## Eigener Server (VPS)
+
+Die Seite ist statisch: Der Server liefert nur die Dateien aus, die Daten liegen bei Supabase. Benötigt wird ein Linux-Server (z. B. Ubuntu 22.04 oder neuer).
+
+**Diese Dateien gehören auf den Server:** `index.html`, `app.js`, `styles.css`, `emojis.js`, `manifest.webmanifest`, `icon.svg`, `icon-180.png`, `icon-512.png`. Dazu die Konfiguration `deploy/nginx.conf`. `supabase/setup.sql` brauchst du nur einmal, für Supabase.
+
+1. **DNS:** Bei deinem Domain-Anbieter einen A-Eintrag für `example.de` und `www` auf die IP des Servers setzen.
+2. **Installieren:** `sudo apt update && sudo apt install -y nginx certbot python3-certbot-nginx`
+3. **Dateien kopieren:** `sudo mkdir -p /var/www/finanzapp`, dann die Dateien aus der Liste oben nach `/var/www/finanzapp/` kopieren.
+4. **Konfiguration:** `sudo cp deploy/nginx.conf /etc/nginx/sites-available/finanzapp`. In der Datei `example.de` durch deine Domain ersetzen. Dann `sudo ln -s /etc/nginx/sites-available/finanzapp /etc/nginx/sites-enabled/`, `sudo rm -f /etc/nginx/sites-enabled/default` und `sudo nginx -t && sudo systemctl reload nginx`.
+5. **HTTPS:** `sudo certbot --nginx -d example.de -d www.example.de`. Certbot richtet das Zertifikat ein und leitet HTTP auf HTTPS um.
+6. **Supabase:** Als *Site URL* die Adresse `https://example.de` eintragen (siehe oben).
+
+**Updates:** Neue Dateien nach `/var/www/finanzapp/` kopieren. Nginx muss dafür nicht neu gestartet werden.
+
+**Alternative mit Docker:** `deploy/Dockerfile` (Anleitung dort).
+
+**Stand dieser Version:** Der Admin-Tab, „Passwort vergessen“, die geteilten Notizen und die Namensanzeige aus der claude.ai-Version sind hier noch nicht enthalten.
