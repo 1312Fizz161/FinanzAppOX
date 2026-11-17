@@ -512,6 +512,15 @@ body.locked .dock { display: none; }
 .nt-add input { flex: 1; min-width: 0; background: var(--field); border: 0; outline: 0; border-radius: 12px; padding: 10px 12px; font-size: 16px; color: var(--text); user-select: text; -webkit-user-select: text; }
 .nt-add input::placeholder { color: var(--faint); }
 .nt-add .paybtn { width: 44px; padding: 8px 0; font-size: 20px; flex: none; }
+
+/* ---------- Geteilte Notizen ---------- */
+.note-share { display: none; padding: 2px 4px 8px; }
+.note-share:empty { display: none; }
+#notes.editing .note-share { display: block; }
+.note-share .pick { gap: 6px; }
+.note-share .pchip { font-size: 14px; padding: 4px 12px 4px 4px; }
+.note-share .hint.inpad { padding: 0 2px 6px; }
+.ntag { display: block; margin-top: 2px; font-size: 12.5px; color: var(--faint); }
 #home-notes { width: 100%; max-width: 380px; margin-top: 16px; }
 .home-notes { border-radius: 26px; padding: 14px 16px 6px; }
 .hn-more { font-size: 13px; color: var(--accent); font-weight: 600; text-transform: none; letter-spacing: 0; padding: 2px 0; }
