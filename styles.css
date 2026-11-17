@@ -542,3 +542,13 @@ body.locked .dock { display: none; }
 .req-reset input { width: 0; flex: 1; min-width: 0; background: var(--field); border: 0; outline: 0; border-radius: 12px; padding: 10px 12px; font-size: 16px; color: var(--text); user-select: text; -webkit-user-select: text; }
 .req-reset input::placeholder { color: var(--faint); }
 .req-reset .btn { margin-top: 0; width: auto; padding: 10px 14px; flex: none; }
+
+/* ---------- Version und Verbesserungsvorschläge ---------- */
+.app-version { margin-top: 4px; font-size: 12px; letter-spacing: .04em; color: var(--faint); text-align: center; }
+.idea-txt { flex: 1; min-width: 0; padding: 12px 0; font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; white-space: normal; }
+.idea-meta { color: var(--faint); font-size: 12.5px; padding: 6px 0 2px; }
+.idea-st { flex: none; margin-left: 10px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.idea-st.umgesetzt { color: var(--pay1); }
+.idea-st.nicht { color: var(--red); }
+.idea-pick { padding: 10px 14px 12px; gap: 6px; }
+.idea-pick .pchip { font-size: 13px; padding: 4px 11px; }
