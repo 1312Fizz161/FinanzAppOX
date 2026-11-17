@@ -558,3 +558,14 @@ body.locked .dock { display: none; }
 .hm-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid rgba(255, 255, 255, .08); }
 .hm-row:first-of-type { border-top: 0; }
 .hm-row span { flex: 1; min-width: 0; font-size: 15px; overflow-wrap: anywhere; }
+
+/* ---------- Profilfotos ---------- */
+.avatar.photo { background-size: cover; background-position: center; background-repeat: no-repeat; }
+.avatar.lg { width: 46px; height: 46px; font-size: 18px; border: 0; margin: 0; flex: none; }
+.photo-field { gap: 10px; min-height: 60px; }
+.photo-txt { flex: 1; min-width: 0; }
+.photo-txt b { display: block; font-size: 15px; font-weight: 600; }
+.photo-txt small { color: var(--faint); font-size: 12.5px; }
+.pbtn { flex: none; padding: 7px 11px; border-radius: 12px; background: rgba(255, 255, 255, .12); border: 1px solid var(--stroke); font-size: 14px; font-weight: 600; color: var(--text); }
+.pbtn.danger { color: var(--red); }
+.pbtn.ico { width: 32px; height: 32px; padding: 0; border-radius: 50%; display: grid; place-items: center; font-size: 15px; }
