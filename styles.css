@@ -552,10 +552,3 @@ body.locked .dock { display: none; }
 .idea-st.nicht { color: var(--red); }
 .idea-pick { padding: 10px 14px 12px; gap: 6px; }
 .idea-pick .pchip { font-size: 13px; padding: 4px 11px; }
-
-/* ---------- Preise der Verkäufer im Vergleich ---------- */
-.pcmp { margin: 10px 4px 0; display: grid; gap: 7px; font-size: 13.5px; color: var(--muted); }
-.pcmp-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
-.pcmp-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pcmp-prices { text-align: right; font-variant-numeric: tabular-nums; flex: none; }
-.pcmp-prices span.on { color: var(--text); font-weight: 600; }
