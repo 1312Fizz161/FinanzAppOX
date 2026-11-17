@@ -5,5 +5,5 @@
 # HTTPS dann über einen Reverse-Proxy davor (z. B. Caddy oder Nginx mit Certbot).
 FROM nginx:alpine
 COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
-COPY index.html app.js styles.css emojis.js manifest.webmanifest icon.svg icon-180.png icon-512.png /var/www/finanzapp/
+COPY index.html app.js styles.css emojis.js manifest.webmanifest icon-180.png icon-512.png /var/www/finanzapp/
 EXPOSE 80
