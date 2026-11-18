@@ -573,7 +573,8 @@ body.locked .dock { display: none; }
 /* ---------- Spardose ---------- */
 .app-icon.spar { background: linear-gradient(150deg, #ffc2dc 0%, #ff7fb0 55%, #e0457f 100%); box-shadow: 0 1px 0 rgba(255, 255, 255, .45) inset, 0 -8px 16px rgba(0, 0, 0, .14) inset, 0 10px 22px -8px rgba(224, 69, 127, .7); }
 .app-icon.spar svg { stroke-width: 2; }
-.sp-total { padding: 18px 16px; border-radius: 24px; margin-bottom: 14px; text-align: center; }
+.sp-total { display: block; width: 100%; padding: 18px 16px; border-radius: 24px; margin-bottom: 14px; text-align: center; font: inherit; color: var(--text); cursor: pointer; }
+.sp-total:active { transform: scale(.98); }
 .sp-label { font-size: 13px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
 .sp-amount { margin: 6px 0 4px; font-size: 40px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
 .sp-total small { color: var(--faint); font-size: 12.5px; }
