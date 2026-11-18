@@ -616,3 +616,12 @@ body.locked .dock { display: none; }
 .zig-col em { position: absolute; left: -3px; right: -3px; height: 2px; background: var(--pay1); }
 .zig-day small { font-size: 11px; color: var(--faint); }
 .zig-day b { font-size: 12px; font-variant-numeric: tabular-nums; }
+
+/* ---------- Schulden (nur Matti) ---------- */
+.schuld-list { grid-template-columns: minmax(0, 1fr); }
+.schuld-row { display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr); }
+.schuld-row .sp-face { justify-self: start; }
+.schuld-pay { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.schuld-pay input { flex: 1; min-width: 0; background: var(--field); border: 0; outline: 0; border-radius: 12px; padding: 9px 10px; font-size: 16px; color: var(--text); font-variant-numeric: tabular-nums; user-select: text; -webkit-user-select: text; }
+.schuld-pay input::placeholder { color: var(--faint); }
+.schuld-pay .pbtn { flex: none; }
