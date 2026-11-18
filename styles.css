@@ -65,7 +65,7 @@ body:not([data-view="home"]) .wallpaper i { opacity: .32; transition: opacity .6
 }
 #home { align-items: center; }
 .appscreen { transform-origin: 50% 100%; transform: scale(.25) translateY(20%); opacity: 0; pointer-events: none; }
-body[data-view="manager"] #manager, body[data-view="mac"] #mac, body[data-view="notes"] #notes, body[data-view="inv"] #inv, body[data-view="adm"] #adm { transform: none; opacity: 1; pointer-events: auto; }
+body[data-view="manager"] #manager, body[data-view="mac"] #mac, body[data-view="notes"] #notes, body[data-view="inv"] #inv, body[data-view="adm"] #adm, body[data-view="spar"] #spar { transform: none; opacity: 1; pointer-events: auto; }
 body:not([data-view="home"]) #home { transform: scale(.9); opacity: 0; filter: blur(12px); pointer-events: none; }
 
 /* ---------- Home ---------- */
@@ -95,7 +95,7 @@ body:not([data-view="home"]) #home { transform: scale(.9); opacity: 0; filter: b
 }
 .app-icon svg { width: 23px; height: 23px; stroke: #fff; stroke-width: 2.3; filter: drop-shadow(0 1px 1px var(--field)); }
 .dot { width: 4px; height: 4px; border-radius: 50%; background: #fff; opacity: 0; transition: opacity .3s; }
-body[data-view="manager"] [data-app="manager"] .dot, body[data-view="mac"] [data-app="mac"] .dot, body[data-view="notes"] [data-app="notes"] .dot, body[data-view="inv"] [data-app="inv"] .dot, body[data-view="adm"] [data-app="adm"] .dot { opacity: .85; }
+body[data-view="manager"] [data-app="manager"] .dot, body[data-view="mac"] [data-app="mac"] .dot, body[data-view="notes"] [data-app="notes"] .dot, body[data-view="inv"] [data-app="inv"] .dot, body[data-view="adm"] [data-app="adm"] .dot, body[data-view="spar"] [data-app="spar"] .dot { opacity: .85; }
 
 /* ---------- Manager ---------- */
 .bar { display: flex; align-items: center; justify-content: space-between; padding: 0 2px 14px; }
@@ -569,3 +569,22 @@ body.locked .dock { display: none; }
 .pbtn { flex: none; padding: 7px 11px; border-radius: 12px; background: rgba(255, 255, 255, .12); border: 1px solid var(--stroke); font-size: 14px; font-weight: 600; color: var(--text); }
 .pbtn.danger { color: var(--red); }
 .pbtn.ico { width: 32px; height: 32px; padding: 0; border-radius: 50%; display: grid; place-items: center; font-size: 15px; }
+
+/* ---------- Spardose ---------- */
+.app-icon.spar { background: linear-gradient(150deg, #ffc2dc 0%, #ff7fb0 55%, #e0457f 100%); box-shadow: 0 1px 0 rgba(255, 255, 255, .45) inset, 0 -8px 16px rgba(0, 0, 0, .14) inset, 0 10px 22px -8px rgba(224, 69, 127, .7); }
+.app-icon.spar svg { stroke-width: 2; }
+.sp-total { padding: 18px 16px; border-radius: 24px; margin-bottom: 14px; text-align: center; }
+.sp-label { font-size: 13px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.sp-amount { margin: 6px 0 4px; font-size: 40px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.sp-total small { color: var(--faint); font-size: 12.5px; }
+.sp-list { display: grid; gap: 8px; }
+.sp-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 18px; }
+.sp-face { flex: none; min-width: 84px; padding: 6px 10px; border-radius: 12px; text-align: center; font-weight: 700; font-size: 14px; background: rgba(255, 255, 255, .1); border: 1px solid var(--stroke); }
+.sp-face.bill { background: linear-gradient(150deg, rgba(120, 220, 150, .35), rgba(20, 120, 60, .3)); }
+.sp-face.coin { background: linear-gradient(150deg, rgba(255, 220, 130, .3), rgba(160, 110, 20, .3)); }
+.sp-count { flex: 1; min-width: 0; display: grid; }
+.sp-count b { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.sp-count small { color: var(--faint); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.sp-btn { flex: none; width: 40px; height: 40px; border-radius: 50%; font-size: 22px; font-weight: 600; line-height: 1; background: rgba(255, 255, 255, .12); border: 1px solid var(--stroke); color: var(--text); }
+.sp-btn.plus { background: linear-gradient(150deg, var(--pay1), var(--pay2)); color: var(--payText); border: 0; }
+.sp-btn:disabled { opacity: .35; }

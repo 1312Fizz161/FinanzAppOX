@@ -112,6 +112,18 @@
     <div class="scroll" id="adm-body"></div>
   </main>
 
+  <!-- Spardose (nur für Matti) -->
+  <main id="spar" class="screen appscreen" aria-hidden="true">
+    <header class="bar">
+      <button class="round glass" data-action="close" aria-label="Zurück">
+        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <h1>Spardose</h1>
+      <span class="round"></span>
+    </header>
+    <div class="scroll" id="spar-body"></div>
+  </main>
+
   <!-- Dock -->
   <nav class="dock glass" aria-label="Apps">
     <button class="app" data-action="toggle" data-app="manager" aria-label="Finanz Manager">
@@ -134,6 +146,10 @@
     <button class="app" data-action="toggle" data-app="adm" aria-label="Admin" hidden>
       <span class="app-icon adm"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
       <span class="nbadge" id="adm-badge"></span>
+      <span class="dot"></span>
+    </button>
+    <button class="app" data-action="toggle" data-app="spar" aria-label="Spardose" hidden>
+      <span class="app-icon spar"><svg viewBox="0 0 24 24"><path d="M5 11a6 6 0 0 1 11-3.2l2.3-.8.7 2.3A5 5 0 0 1 19 13v1h-2.2A6 6 0 0 1 11 17H9v3H6v-3.3A5.5 5.5 0 0 1 5 11z"/><path d="M14 8h.01"/></svg></span>
       <span class="dot"></span>
     </button>
   </nav>
