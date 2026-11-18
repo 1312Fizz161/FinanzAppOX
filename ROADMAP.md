@@ -2,7 +2,7 @@
 
 ## Stand
 
-- **Version 1.0:** läuft auf claude.ai (Link `Gw3BVM9g9qBC34CLXrKwhT`). Dort ist der volle Funktionsumfang gebaut, der Speicher liegt bei claude.ai.
+- **Version 1.1:** läuft auf claude.ai (Link `Gw3BVM9g9qBC34CLXrKwhT`). Dort ist der volle Funktionsumfang gebaut, der Speicher liegt bei claude.ai.
 - **Version 1.5:** läuft auf eigenen Servern. Grundlage ist die Repo-Version (`app.js`, Supabase als Datenbank). Dort fehlt noch alles, was nach dem Umzug in der claude.ai-Version dazugekommen ist.
 
 ## Version 1.5: Umstellung auf eigene Server
