@@ -260,8 +260,8 @@ body.sheet-open .sheet { transform: none; }
 .round.danger { color: var(--red); font-size: 13px; font-weight: 600; }
 .round.danger.sure { width: auto; padding: 0 14px; border-radius: 21px; }
 .round.danger svg { width: 19px; height: 19px; }
-.note-list { display: grid; gap: 10px; }
-.note { display: block; width: 100%; text-align: left; border-radius: 20px; padding: 14px 16px; transition: transform .2s var(--ease); }
+.note-list { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); }
+.note { display: block; width: 100%; min-width: 0; text-align: left; border-radius: 20px; padding: 14px 16px; transition: transform .2s var(--ease); }
 .note:active { transform: scale(.98); }
 .note b { display: block; font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .note span { display: block; margin-top: 2px; font-size: 14.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
