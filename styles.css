@@ -633,3 +633,11 @@ body.spar-sheet-open #spar-sheet { transform: none; }
 /* ---------- Kopfzeile mit zwei Knöpfen (Notizen: Plus und Einstellungen) ---------- */
 .bar-actions { display: flex; align-items: center; gap: 8px; }
 .bar-ghost { display: block; width: 42px; height: 42px; }
+
+/* ---------- Passwort anzeigen (Augensymbol im Passwortfeld) ---------- */
+.pw-wrap { position: relative; width: 100%; min-width: 0; }
+.pw-wrap input { width: 100%; padding-right: 46px !important; }
+.pw-eye { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); background: none; border: 0; }
+.pw-eye svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.pw-eye:active { background: var(--glass-strong); }
+.field .pw-wrap, .req-reset .pw-wrap { flex: 1; }
