@@ -320,6 +320,7 @@ body.sheet-open .sheet { transform: none; }
 
 .ctx { margin: 16px 6px 0; font-size: 14px; color: var(--muted); }
 .pick.in-sheet { padding: 0 2px; }
+.pick + .group { margin-top: 14px; } /* Abstand zwischen Auswahl-Knöpfen und der Karte darunter */
 
 .acct[data-action] { cursor: pointer; display: block; width: 100%; text-align: left; transition: transform .2s var(--ease), border-color .3s, background .3s; }
 .acct[data-action]:active { transform: scale(.97); }
