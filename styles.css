@@ -353,6 +353,11 @@ body.sheet-open .sheet { transform: none; }
 .widget .w-row.money strong.pos { color: var(--green); }
 .widget .w-row.money strong.neg { color: var(--red); }
 
+/* ---------- Startbildschirm: Heute konsumiert ---------- */
+#home-today { width: 100%; max-width: 380px; margin-top: 16px; }
+#home-today[hidden] { display: none; }
+.widget .w-row small { color: var(--faint); font-weight: 500; font-size: 14px; }
+
 /* ---------- MacPunkte ---------- */
 .section-title.first { margin-top: 4px; }
 .section-title small { font-size: 14px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
