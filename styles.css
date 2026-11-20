@@ -629,3 +629,7 @@ body.locked .dock { display: none; }
 /* ---------- Spardose-Einstellungen (Zahnrad) ---------- */
 body.spar-sheet-open #spar-backdrop { opacity: 1; pointer-events: auto; }
 body.spar-sheet-open #spar-sheet { transform: none; }
+
+/* ---------- Kopfzeile mit zwei Knöpfen (Notizen: Plus und Einstellungen) ---------- */
+.bar-actions { display: flex; align-items: center; gap: 8px; }
+.bar-ghost { display: block; width: 42px; height: 42px; }
