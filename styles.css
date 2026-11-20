@@ -437,6 +437,14 @@ body.sheet-open .sheet { transform: none; }
 .field.bulk .unit { white-space: nowrap; font-size: 14px; }
 .field input.num.tiny { flex: 0 0 40px; }
 
+/* Zahlen antippen und mit der Tastatur eingeben: Anzahl beim Kaufen und Menühöhe */
+.stepper .qty-wrap { display: inline-flex; align-items: center; gap: 1px; }
+.stepper .qty-in { width: 48px; padding: 4px 2px; border: 0; border-radius: 8px; background: rgba(255, 255, 255, .08); outline: 0; color: var(--text); font-family: inherit; font-size: 14px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; }
+.stepper .qty-in:focus { background: var(--glass-strong); }
+.stepper .qty-wrap i { font-style: normal; font-size: 14px; font-weight: 600; color: var(--text); }
+#dock-px { flex: 0 0 76px; width: 76px; padding: 8px 6px; border-radius: 10px; background: var(--field); text-align: center; font-weight: 600; }
+#dock-px:focus { background: var(--glass-strong); }
+
 /* ---------- Login ---------- */
 .lockscreen { position: fixed; inset: 0; z-index: 50; display: none; padding: 24px 18px; background: var(--lockbg); -webkit-backdrop-filter: blur(22px) saturate(140%); backdrop-filter: blur(22px) saturate(140%); overflow-y: auto; }
 body.locked .lockscreen { display: flex; }
