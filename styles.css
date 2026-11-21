@@ -355,7 +355,7 @@ body.sheet-open .sheet { transform: none; }
 .widget .w-row.money strong.neg { color: var(--red); }
 
 /* ---------- Startbildschirm: Heute konsumiert ---------- */
-#home-today { width: 100%; max-width: 380px; margin-top: 16px; }
+#home-today { width: 100%; max-width: 380px; margin-top: 16px; cursor: pointer; }
 #home-today[hidden] { display: none; }
 .widget .w-row small { color: var(--faint); font-weight: 500; font-size: 14px; }
 
