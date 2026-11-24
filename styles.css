@@ -687,3 +687,22 @@ body.spar-sheet-open #spar-sheet { transform: none; }
 .chat-del.sure { color: var(--red); background: rgba(255, 255, 255, .12); }
 .chat-row.mine .chat-del { color: rgba(255, 255, 255, .85); }
 .chat-note { margin-top: 10px; text-align: center; }
+
+#chat-newbar[hidden], #chat-name[hidden] { display: none; }
+.chat-newbar { flex: none; display: grid; gap: 8px; padding: 8px; border-radius: 24px; margin-bottom: calc(var(--safe-b) + var(--dock-lift, 0px) + 104px); }
+#chat-name { width: 100%; box-sizing: border-box; padding: 10px 14px; border: 0; border-radius: 16px; background: var(--field); color: var(--text); font-size: 16px; outline: 0; }
+#chat-name::placeholder { color: var(--faint); }
+.chat-start { width: 100%; padding: 12px; border-radius: 16px; font-size: 16px; font-weight: 700; background: linear-gradient(145deg, var(--pay1), var(--pay2)); color: var(--payText); }
+.chat-start:disabled { opacity: .45; }
+.chat-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; margin-bottom: 10px; border-radius: 20px; text-align: left; color: var(--text); }
+.chat-avs { display: flex; flex: none; }
+.chat-avs > * + * { margin-left: -10px; }
+.chat-info { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.chat-info b { font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-info small { font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-side { display: grid; justify-items: end; gap: 4px; flex: none; }
+.chat-side time { font-size: 12px; color: var(--faint); }
+.chat-person.on { background: rgba(255, 255, 255, .16); }
+.chat-tick { margin-left: auto; width: 24px; height: 24px; flex: none; border-radius: 50%; border: 2px solid var(--stroke); display: grid; place-items: center; font-style: normal; }
+.chat-tick svg { width: 14px; height: 14px; fill: none; stroke: #fff; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.chat-person.on .chat-tick { background: var(--accent); border-color: transparent; }

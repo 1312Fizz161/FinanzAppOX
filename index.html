@@ -145,9 +145,15 @@
         <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
       </button>
       <h1 id="chat-title">Chat</h1>
-      <span class="bar-ghost" aria-hidden="true"></span>
+      <button class="round glass" id="chat-plus" data-action="chat-new" aria-label="Neuer Chat">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
     </header>
     <div class="scroll" id="chat-body"></div>
+    <div class="chat-newbar glass" id="chat-newbar" hidden>
+      <input id="chat-name" type="text" maxlength="40" autocomplete="off" aria-label="Gruppenname (optional)" hidden>
+      <button class="chat-start" id="chat-start" data-action="chat-start" disabled>Chat starten</button>
+    </div>
     <div class="chat-bar glass" id="chat-bar" hidden>
       <input id="chat-text" type="text" maxlength="500" enterkeyhint="send" autocomplete="off" aria-label="Nachricht schreiben …">
       <button class="chat-send" data-action="chat-send" aria-label="Senden">
