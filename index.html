@@ -141,14 +141,14 @@
 
   <main id="chat" class="screen appscreen" aria-hidden="true">
     <header class="bar">
-      <button class="round glass" data-action="close" aria-label="Zurück">
+      <button class="round glass" id="chat-nav" data-action="chat-back" aria-label="Zurück">
         <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
       </button>
-      <h1>Chat</h1>
+      <h1 id="chat-title">Chat</h1>
       <span class="bar-ghost" aria-hidden="true"></span>
     </header>
     <div class="scroll" id="chat-body"></div>
-    <div class="chat-bar glass" id="chat-bar">
+    <div class="chat-bar glass" id="chat-bar" hidden>
       <input id="chat-text" type="text" maxlength="500" enterkeyhint="send" autocomplete="off" aria-label="Nachricht schreiben …">
       <button class="chat-send" data-action="chat-send" aria-label="Senden">
         <svg viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg>

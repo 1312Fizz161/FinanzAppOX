@@ -676,3 +676,14 @@ body.spar-sheet-open #spar-sheet { transform: none; }
 #chat-text::placeholder { color: var(--faint); }
 .chat-send { flex: none; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: linear-gradient(145deg, var(--pay1), var(--pay2)); }
 .chat-send svg { width: 18px; height: 18px; fill: none; stroke: var(--payText); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+
+#chat-bar[hidden] { display: none; }
+.chat-person { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; margin-bottom: 10px; border-radius: 20px; text-align: left; font-size: 17px; font-weight: 600; color: var(--text); }
+.chat-person span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-count { margin-left: auto; min-width: 24px; height: 24px; padding: 0 7px; border-radius: 12px; display: grid; place-items: center; font-size: 13px; background: linear-gradient(145deg, var(--pay1), var(--pay2)); color: var(--payText); }
+.chat-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 2px; }
+.chat-del { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 8px; font-size: 12px; font-weight: 600; color: var(--faint); }
+.chat-del svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.chat-del.sure { color: var(--red); background: rgba(255, 255, 255, .12); }
+.chat-row.mine .chat-del { color: rgba(255, 255, 255, .85); }
+.chat-note { margin-top: 10px; text-align: center; }
