@@ -720,3 +720,21 @@ body.spar-sheet-open #spar-sheet { transform: none; }
 .chat-drop { position: absolute; top: 0; right: 0; bottom: 0; width: 96px; z-index: 0; display: grid; place-items: center; padding: 0; border: 0; border-radius: 0 20px 20px 0; font-size: 15px; font-weight: 700; color: #fff; background: #e5484d; opacity: 0; pointer-events: none; transition: opacity .2s; }
 .chat-row-wrap.open .chat-drop, .chat-row-wrap.drag .chat-drop { opacity: 1; pointer-events: auto; }
 .chat-drop.sure { background: #b42318; }
+
+/* Schulden je Person: ein Gesamtbetrag, der Pfeil klappt die einzelnen Stücke auf */
+.debt-group { overflow: hidden; border-radius: 20px; }
+.debt-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 14px; text-align: left; font: inherit; color: var(--text); background: none; border: 0; transition: background .2s; }
+.debt-head:active { background: rgba(255, 255, 255, .06); }
+.debt-head .txt { flex: 1; min-width: 0; }
+.debt-head .txt b { display: block; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.debt-head .sum { flex: none; font-size: 16px; font-weight: 700; color: var(--red); font-variant-numeric: tabular-nums; }
+.debt-head .arrow { flex: none; width: 8px; height: 8px; margin: 0 4px 0 2px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); transition: transform .2s var(--ease); }
+.debt-group.open .arrow { transform: translateY(-2px) rotate(-135deg); }
+.debt-lines { display: grid; gap: 8px; padding: 0 12px 12px; }
+.debt-lines .debt { padding: 8px 10px; border-radius: 16px; background: rgba(255, 255, 255, .05); }
+.debt-lines .debt .emoji { width: 36px; height: 36px; font-size: 18px; border-radius: 11px; }
+/* Mülleimer im Inventar: klein und unauffällig, zweimal tippen löscht ein Stück */
+.slot .inv-del { position: absolute; top: 10px; left: 10px; width: 24px; height: 24px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 8px; background: none; color: var(--muted); opacity: .3; transition: opacity .2s, color .2s, background .2s; }
+.slot .inv-del svg { width: 13px; height: 13px; stroke-width: 2; }
+.slot .inv-del.sure { opacity: 1; color: var(--red); background: rgba(255, 107, 107, .14); }
+.slot.eating .inv-del { opacity: 0; }
