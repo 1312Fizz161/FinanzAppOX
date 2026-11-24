@@ -712,3 +712,11 @@ body.spar-sheet-open #spar-sheet { transform: none; }
 .ticks { width: 15px; height: 15px; flex: none; fill: none; stroke: rgba(255, 255, 255, .78); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .ticks.read { width: 21px; stroke: #8fd8ff; }
 .chat-all > span:not(.chat-avs) { white-space: normal; line-height: 1.25; }
+
+/* Chat-Liste: nach links wischen zeigt „Löschen“ */
+.chat-row-wrap { position: relative; margin-bottom: 10px; }
+.chat-row-wrap > .chat-item { position: relative; z-index: 1; margin-bottom: 0; touch-action: pan-y; transition: transform .25s ease; }
+.chat-row-wrap.open > .chat-item { transform: translateX(-96px); }
+.chat-drop { position: absolute; top: 0; right: 0; bottom: 0; width: 96px; z-index: 0; display: grid; place-items: center; padding: 0; border: 0; border-radius: 0 20px 20px 0; font-size: 15px; font-weight: 700; color: #fff; background: #e5484d; opacity: 0; pointer-events: none; transition: opacity .2s; }
+.chat-row-wrap.open .chat-drop, .chat-row-wrap.drag .chat-drop { opacity: 1; pointer-events: auto; }
+.chat-drop.sure { background: #b42318; }
