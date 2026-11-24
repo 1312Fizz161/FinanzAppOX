@@ -738,3 +738,11 @@ body.spar-sheet-open #spar-sheet { transform: none; }
 .slot .inv-del svg { width: 13px; height: 13px; stroke-width: 2; }
 .slot .inv-del.sure { opacity: 1; color: var(--red); background: rgba(255, 107, 107, .14); }
 .slot.eating .inv-del { opacity: 0; }
+
+/* iOS-Wischgeste für Anfragen und Notizen (wie bei den Chats): nach links wischen, „Löschen“ liegt dahinter */
+.swipe-row { position: relative; border-radius: 22px; }
+.swipe-row > .swipe-item { position: relative; z-index: 1; touch-action: pan-y; transition: transform .25s ease; }
+.swipe-row.open > .swipe-item { transform: translateX(-96px); }
+.swipe-drop { position: absolute; top: 0; right: 0; bottom: 0; width: 96px; z-index: 0; display: grid; place-items: center; padding: 0; border: 0; border-radius: 0 22px 22px 0; font: inherit; font-size: 15px; font-weight: 700; color: #fff; background: #e5484d; opacity: 0; pointer-events: none; transition: opacity .2s; }
+.swipe-row.open .swipe-drop, .swipe-row.drag .swipe-drop { opacity: 1; pointer-events: auto; }
+.swipe-drop.sure { background: #b42318; }
