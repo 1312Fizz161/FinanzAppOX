@@ -178,7 +178,7 @@ body[data-view="manager"] [data-app="manager"] .dot, body[data-view="mac"] [data
   border-radius: 30px 30px 0 0; transform: translateY(105%); transition: transform .5s var(--ease);
 }
 body.sheet-open .backdrop { opacity: 1; pointer-events: auto; }
-body.sheet-open .sheet { transform: none; }
+body.sheet-open #sheet { transform: none; }
 .grabber { width: 38px; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, .28); margin: 8px auto 0; }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px 10px; }
 .sheet-head h2 { margin: 0; font-size: 22px; font-weight: 700; }
@@ -748,3 +748,31 @@ body.spar-sheet-open #spar-sheet { transform: none; }
 /* Löschen ohne Wischgeste: erster Tipp zeigt „Löschen?“, der zweite löscht */
 .x.sure { width: auto; min-width: 28px; height: 28px; padding: 0 9px; border-radius: 14px; background: #e5484d; color: #fff; font-size: 12px; font-weight: 700; white-space: nowrap; }
 .pbtn.danger.sure { background: #b42318; color: #fff; }
+
+/* Einstellungen: einfache Startseite, Farbauswahl, „Erweiterte Einstellungen“ */
+.acc-field label { width: auto; white-space: nowrap; }
+.acc-field .acc-as { text-align: right; padding-left: 0; }
+.set-group { margin-top: 18px; }
+.field.set-row { justify-content: space-between; min-height: 54px; }
+.field.set-row > label { width: auto; flex: none; color: var(--text); font-size: 16px; font-weight: 500; }
+.seg-mini { display: inline-flex; padding: 3px; border-radius: 12px; background: var(--field); }
+.seg-mini button { padding: 6px 13px; border-radius: 9px; font-size: 14px; font-weight: 600; color: var(--muted); transition: background .2s, color .2s; }
+.seg-mini button.on { background: var(--glass-strong); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, .3); }
+.theme-btn { display: inline-flex; align-items: center; gap: 8px; padding: 6px 9px 6px 7px; border-radius: 999px; background: var(--glass-strong); border: 1px solid var(--stroke); color: var(--text); font-size: 15px; font-weight: 600; transition: transform .2s var(--ease); }
+.theme-btn:active { transform: scale(.96); }
+.theme-btn .chev { width: 16px; height: 16px; opacity: .65; transition: transform .25s var(--ease); }
+.theme-btn.open .chev { transform: rotate(180deg); }
+.theme-panel { padding: 4px 12px 14px; border-bottom: 1px solid rgba(255, 255, 255, .08); animation: themeIn .28s var(--ease); }
+.theme-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.theme-tile { position: relative; display: grid; justify-items: center; gap: 8px; padding: 15px 6px 11px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, .16); font-size: 13px; font-weight: 600; transition: transform .2s var(--ease), box-shadow .2s; }
+.theme-tile:active { transform: scale(.95); }
+.theme-tile.on { box-shadow: 0 0 0 2.5px var(--text); }
+.tdot-lg { width: 38px; height: 38px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .3), 0 6px 14px -6px rgba(0, 0, 0, .6); }
+.theme-tile .tick { position: absolute; top: 6px; right: 6px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; background: var(--text); color: var(--bg); }
+.theme-tile .tick svg { width: 11px; height: 11px; stroke-width: 3.2; }
+@keyframes themeIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+.adv-btn { display: flex; align-items: center; justify-content: space-between; color: var(--text); }
+.adv-btn svg { width: 18px; height: 18px; color: var(--faint); }
+.set-back { display: inline-flex; align-items: center; gap: 2px; margin: 2px 0 0 -6px; padding: 8px 10px 8px 2px; color: var(--accent); font-size: 17px; font-weight: 600; }
+.set-back svg { width: 22px; height: 22px; }
+.set-title { margin: 2px 8px 0; font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
